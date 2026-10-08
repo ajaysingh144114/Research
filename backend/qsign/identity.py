@@ -29,6 +29,7 @@ class Principal:
     org_id: str
     verified_by: str
     groups: frozenset[str] = field(default_factory=frozenset)
+    auth_time: int | None = None  # when the person last entered their password and MFA code (epoch seconds)
 
     @property
     def is_org_admin(self) -> bool:
@@ -63,6 +64,7 @@ def principal_from_claims(claims: dict) -> Principal:
         org_id=str(claims.get("custom:org_id") or GUEST_ORG),
         verified_by=f"cognito:{claims.get('iss', '')}",
         groups=parse_groups(claims.get("cognito:groups")),
+        auth_time=int(claims["auth_time"]) if str(claims.get("auth_time", "")).isdigit() else None,
     )
 
 
@@ -104,6 +106,7 @@ def optional_principal(request: Request) -> Principal | None:
             org_id=request.headers.get("x-qsign-dev-org") or "dev-org",
             verified_by="self-declared (development)",
             groups=parse_groups(request.headers.get("x-qsign-dev-groups", "")),
+            auth_time=int(t) if (t := request.headers.get("x-qsign-dev-auth-time", "")).isdigit() else None,
         )
     return None
 

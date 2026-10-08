@@ -14,7 +14,8 @@ QSign is commercial software from Justivia Legal Ventures LLP: every organisatio
 gets a **30-day free trial**, then a paid subscription (see [Plans](#plans) and
 [LICENSE](LICENSE)). The [QSign Verifier](verifier/) is free and open source
 (Apache 2.0), so anyone can always check a QSign signature. For the legal position
-in the USA, India and the EU, read [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
+in the USA, India and the EU, read [docs/COMPLIANCE.md](docs/COMPLIANCE.md). For what US companies and
+the US government require before buying, read [docs/US-READINESS.md](docs/US-READINESS.md).
 
 ## Features
 

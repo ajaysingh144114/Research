@@ -71,6 +71,11 @@ utility shut-off, eviction). Check before using QSign for these.
 - **Identity:** agencies expect identity proofing to NIST SP 800-63 (IAL2/AAL2
   or higher). QSign already requires MFA; add an identity-proofing step for this.
 
+**Consumers, pharma and buying requirements:** QSign supports the ESIGN §101(c)
+consumer disclosure, FDA 21 CFR Part 11 signature meanings and re-authentication,
+and ML-DSA-87 for CNSA 2.0. What US buyers need beyond the product (SOC 2,
+FedRAMP, the Trade Agreements Act) is in [US-READINESS.md](US-READINESS.md).
+
 ## India
 
 **Law:** the Information Technology Act, 2000.

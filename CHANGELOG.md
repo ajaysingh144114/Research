@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+
+- US readiness report: docs/US-READINESS.md (what US companies and government buyers require, and the plan).
+- ESIGN Act §101(c) consumer consent: senders can require signers to read and accept a consumer disclosure (template provided); each signature records the accepted text's SHA-256, and evidence verification detects any later edit.
+- FDA 21 CFR Part 11: every signature can carry its meaning (agreement, approval, review, authorship, responsibility, acknowledgement, witness), and `SigningReauthMinutes` makes signers re-enter password and authenticator code before signing.
+- NSA CNSA 2.0: `PostQuantumAlgorithm` deploy setting chooses ML-DSA-65 or ML-DSA-87.
+- Trial days left now round up.
+
 ## 0.3.0
 
 - QSign is now commercial software under the QSign Commercial Licence, with a 30-day free trial per organisation and paid Business and Enterprise plans. Versions up to 0.2.0 stay available under Apache 2.0.

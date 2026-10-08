@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 import os
 import threading
 from datetime import datetime, timedelta, timezone
@@ -50,7 +51,7 @@ def status(sub: dict, now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     expires = _parse(sub["expires_at"])
     active = now < expires
-    days_left = max(0, (expires - now).days) if active else 0
+    days_left = math.ceil((expires - now).total_seconds() / 86400) if active else 0
     return {
         "org_id": sub["org_id"],
         "plan": sub["plan"],

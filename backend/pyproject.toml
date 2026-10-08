@@ -1,6 +1,6 @@
 [project]
 name = "qsign"
-version = "0.3.0"
+version = "0.4.0"
 license = "LicenseRef-QSign-Commercial"
 description = "Quantum-safe hybrid (ML-DSA + ECDSA) electronic signatures on AWS"
 requires-python = ">=3.11"

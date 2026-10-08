@@ -43,6 +43,8 @@
   .scroll { overflow-x:auto; }
   .signer-row { display:flex; gap:8px; margin-top:6px; } .signer-row input { flex:1; min-width:0; }
   code { font-size:13px; word-break:break-all; }
+  .disclosure { white-space:pre-wrap; max-height:260px; overflow:auto; border:1px solid var(--line); padding:10px; font-size:13px; }
+  dialog { border:1px solid var(--line); border-radius:8px; max-width:420px; width:calc(100% - 32px); }
 </style>
 </head>
 <body>
@@ -112,7 +114,13 @@
     <div class="scroll"><table><thead><tr><th>#</th><th>Signer</th><th>Status</th><th>When</th></tr></thead><tbody id="dSigners"></tbody></table></div>
     <div id="dSignBox" class="hidden">
       <h3>Your signature</h3>
+      <div id="dDisclosureBox" class="hidden">
+        <label>Consent to electronic records (please read)</label>
+        <pre id="dDisclosure" class="disclosure"></pre>
+        <label class="check"><input id="dDisclosureOk" type="checkbox">I have read this notice on this screen and agree to receive and sign these records electronically.</label>
+      </div>
       <label for="dDoc">Select the document to confirm it is the same file</label><input id="dDoc" type="file">
+      <label for="dMeaning">What your signature means</label><select id="dMeaning"><option value="agreement" selected>I agree</option><option value="approval">I approve</option><option value="review">I have reviewed</option><option value="authorship">I am the author</option><option value="responsibility">I take responsibility</option><option value="acknowledgement">I acknowledge receipt</option><option value="witness">I witness</option></select>
       <div class="row">
         <div><label for="dReason">Reason</label><input id="dReason" placeholder="e.g. I approve this agreement"></div>
         <div><label for="dJur">Jurisdiction</label><select id="dJur"><option>US</option><option>IN</option><option>EU</option><option selected>OTHER</option></select></div>
@@ -139,6 +147,11 @@
     <label class="check"><input id="sSeq" type="checkbox" checked>Signers sign one after another, in this order</label>
     <label for="sMsg">Message to signers</label><textarea id="sMsg" rows="3"></textarea>
     <label for="sDays">Expires after (days)</label><input id="sDays" type="number" min="1" max="365" value="30">
+    <label class="check"><input id="sConsumer" type="checkbox">Signers are consumers: show them the US ESIGN consent disclosure before they sign</label>
+    <div id="sDisclosureWrap" class="hidden">
+      <label for="sDisclosure">Consumer disclosure (fill in the [brackets]; have your legal team approve it)</label>
+      <textarea id="sDisclosure" rows="12"></textarea>
+    </div>
     <div class="actions"><button id="sendBtn">Send</button></div>
     <div id="sendMsg" class="msg" aria-live="polite"></div>
   </section>
@@ -146,13 +159,14 @@
   <!-- Quick sign -->
   <section id="quickPane" class="hidden">
     <h2>Sign a document myself</h2>
-    <p class="hint">Signed with ML-DSA-65 (NIST FIPS 204) and ECDSA P-384. You get a .qsig.json signature file to keep with the document.</p>
+    <p class="hint">Signed with ML-DSA (NIST FIPS 204) and ECDSA P-384. You get a .qsig.json signature file to keep with the document.</p>
     <label for="qDoc">Document</label><input id="qDoc" type="file">
     <div class="row">
       <div><label for="qReason">Reason</label><input id="qReason"></div>
       <div><label for="qJur">Jurisdiction</label><select id="qJur"><option>US</option><option>IN</option><option>EU</option><option selected>OTHER</option></select></div>
     </div>
     <label for="qLoc">Location</label><input id="qLoc" placeholder="City, country">
+    <label for="qMeaning">What your signature means</label><select id="qMeaning"><option value="agreement" selected>I agree</option><option value="approval">I approve</option><option value="review">I have reviewed</option><option value="authorship">I am the author</option><option value="responsibility">I take responsibility</option><option value="acknowledgement">I acknowledge receipt</option><option value="witness">I witness</option></select>
     <label class="check"><input id="qConsent" type="checkbox">I have reviewed this document and I agree to sign it electronically.</label>
     <div class="actions"><button id="qSignBtn">Sign</button></div>
     <div id="quickMsg" class="msg" aria-live="polite"></div>
@@ -185,6 +199,14 @@
   </section>
 
   <p style="margin-top:8px"><a href="#" id="publicVerifyLink" class="hidden">Verify a signature without signing in</a></p>
+  <dialog id="reauthDlg">
+    <h3>Confirm it's you</h3>
+    <p class="hint">To sign, enter your password and the code from your authenticator app.</p>
+    <label for="raPw">Password</label><input id="raPw" type="password" autocomplete="current-password">
+    <label for="raCode">Authenticator code</label><input id="raCode" inputmode="numeric" autocomplete="one-time-code">
+    <div class="actions"><button id="raOk">Confirm and sign</button><button id="raCancel" class="ghost">Cancel</button></div>
+    <div id="raMsg" class="msg" aria-live="polite"></div>
+  </dialog>
 </main>
 <script>
 "use strict";
@@ -219,9 +241,13 @@ function headers() {
   return h;
 }
 
-async function api(method, path, body) {
+async function api(method, path, body, retried) {
   const r = await fetch(path, { method, headers: headers(), body: body ? JSON.stringify(body) : undefined });
   const data = await r.json().catch(() => ({}));
+  if (r.status === 401 && data.detail && data.detail.code === "reauth_required" && !retried) {
+    await reauthenticate();
+    return api(method, path, body, true);
+  }
   if (r.status === 401) { signOut("Your session ended. Please sign in again."); throw new Error("signed out"); }
   if (!r.ok) {
     const d = data.detail;
@@ -234,6 +260,32 @@ function download(name, obj) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" }));
   a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// Re-enter password + MFA code just before signing (FDA 21 CFR Part 11 deployments).
+function reauthenticate() {
+  const dlg = $("reauthDlg");
+  $("raPw").value = ""; $("raCode").value = ""; say($("raMsg"), "");
+  dlg.showModal(); $("raPw").focus();
+  return new Promise((resolve, reject) => {
+    $("raCancel").onclick = () => { dlg.close(); reject(new Error("signing cancelled")); };
+    $("raOk").onclick = async () => {
+      $("raOk").disabled = true;
+      try {
+        let res = await cognito("InitiateAuth", { AuthFlow: "USER_PASSWORD_AUTH", ClientId: cfg.cognito_client_id,
+          AuthParameters: { USERNAME: session.me.email, PASSWORD: $("raPw").value } });
+        if (res.ChallengeName === "SOFTWARE_TOKEN_MFA") {
+          res = await cognito("RespondToAuthChallenge", { ClientId: cfg.cognito_client_id, ChallengeName: "SOFTWARE_TOKEN_MFA",
+            Session: res.Session, ChallengeResponses: { USERNAME: res.ChallengeParameters.USER_ID_FOR_SRP || session.me.email,
+              SOFTWARE_TOKEN_MFA_CODE: $("raCode").value.trim() } });
+        }
+        if (!res.AuthenticationResult) throw new Error("could not confirm your identity");
+        session.idToken = res.AuthenticationResult.IdToken;
+        dlg.close(); resolve();
+      } catch (e) { say($("raMsg"), e.message, "bad"); }
+      finally { $("raOk").disabled = false; }
+    };
+  });
 }
 
 // ---------- Cognito sign-in (with first-login password change and MFA) ----------
@@ -397,6 +449,9 @@ async function openEnvelope(id) {
       tbody.appendChild(tr);
     });
     $("dSignBox").classList.toggle("hidden", !env.my_turn);
+    $("dDisclosureBox").classList.toggle("hidden", !env.consumer_disclosure);
+    $("dDisclosure").textContent = env.consumer_disclosure ? env.consumer_disclosure.text : "";
+    $("dDisclosureOk").checked = false;
     $("dEvidenceBtn").classList.toggle("hidden", env.status !== "completed");
     const canCancel = env.status === "open" && (env.created_by.email === session.me.email || session.me.is_org_admin);
     $("dCancelBtn").classList.toggle("hidden", !canCancel);
@@ -406,12 +461,14 @@ async function openEnvelope(id) {
 $("dSignBtn").onclick = async () => {
   const file = $("dDoc").files[0];
   if (!file) return say($("dMsg"), "Select the document first.", "bad");
+  if (current.consumer_disclosure && !$("dDisclosureOk").checked) return say($("dMsg"), "Read the consumer disclosure and tick its box first.", "bad");
   if (!$("dConsent").checked) return say($("dMsg"), "Tick the consent box to sign.", "bad");
   $("dSignBtn").disabled = true;
   try {
     say($("dMsg"), "Checking the document and signing...");
     const res = await api("POST", `/api/envelopes/${current.id}/sign`, {
-      sha512: await sha512Hex(file), consent: true, reason: $("dReason").value, jurisdiction: $("dJur").value });
+      sha512: await sha512Hex(file), consent: true, reason: $("dReason").value, jurisdiction: $("dJur").value,
+      meaning: $("dMeaning").value, disclosure_accepted: !!current.consumer_disclosure && $("dDisclosureOk").checked });
     download(`${file.name}.${session.me.email}.qsig.json`, res.bundle);
     await openEnvelope(current.id);
     say($("dMsg"), res.envelope.status === "completed" ? "Signed. Everyone has now signed; the evidence pack is ready." : "Signed. The next signer has been notified.", "ok");
@@ -444,6 +501,10 @@ function addSigner(email = "", name = "") {
 }
 addSigner();
 $("addSignerBtn").onclick = () => addSigner();
+$("sConsumer").onchange = () => {
+  $("sDisclosureWrap").classList.toggle("hidden", !$("sConsumer").checked);
+  if ($("sConsumer").checked && !$("sDisclosure").value) $("sDisclosure").value = cfg.esign_disclosure_template || "";
+};
 $("sendBtn").onclick = async () => {
   const file = $("sDoc").files[0], msg = $("sendMsg");
   if (!file) return say(msg, "Choose the document.", "bad");
@@ -453,7 +514,8 @@ $("sendBtn").onclick = async () => {
   try {
     const env = await api("POST", "/api/envelopes", {
       title: $("sTitle").value, document: { name: file.name, size: file.size, sha512: await sha512Hex(file) },
-      signers, sequential: $("sSeq").checked, message: $("sMsg").value, expires_in_days: Number($("sDays").value) || 30 });
+      signers, sequential: $("sSeq").checked, message: $("sMsg").value, expires_in_days: Number($("sDays").value) || 30,
+      consumer_disclosure: $("sConsumer").checked ? $("sDisclosure").value : null });
     say(msg, `Sent to ${signers.length} signer(s). Remember to share the document file with them.`, "ok");
     openEnvelope(env.id);
   } catch (e) { say(msg, e.message, "bad"); }
@@ -468,7 +530,7 @@ $("qSignBtn").onclick = async () => {
   $("qSignBtn").disabled = true;
   try {
     const res = await api("POST", "/api/sign", { document: { name: file.name, size: file.size, sha512: await sha512Hex(file) },
-      consent: true, reason: $("qReason").value, location: $("qLoc").value, jurisdiction: $("qJur").value });
+      consent: true, reason: $("qReason").value, location: $("qLoc").value, jurisdiction: $("qJur").value, meaning: $("qMeaning").value });
     download(file.name + ".qsig.json", res.bundle);
     const m = res.bundle.manifest;
     sayLines(msg, ["Signed.", `Signer: ${m.signer.name} <${m.signer.email}>`, `Time: ${when(m.signed_at)}`,
@@ -489,12 +551,12 @@ $("verifyBtn").onclick = async () => {
     const lines = [r.valid ? "VALID" : "NOT VALID"];
     if (r.kind === "evidence") {
       lines.push(`Envelope: ${r.title}`, `Completed: ${when(r.completed_at)}`);
-      (r.signers || []).forEach((s) => lines.push(`${s.order}. ${s.name} <${s.email}> signed ${when(s.signed_at)}: ${s.valid ? "ok" : "FAILED"}`));
+      (r.signers || []).forEach((s) => lines.push(`${s.order}. ${s.name} <${s.email}>${s.meaning ? " (" + s.meaning + ")" : ""} signed ${when(s.signed_at)}: ${s.valid ? "ok" : "FAILED"}`));
     } else {
       (r.signatures || []).forEach((s) => lines.push(`${s.alg}: ${s.valid ? "ok" : "FAILED"}`));
       lines.push(`Document unchanged: ${r.document_match ? "yes" : "NO"}`);
       const m = r.manifest || {}, s = m.signer || {};
-      if (r.valid) lines.push(`Signed by ${s.name} <${s.email}> on ${when(m.signed_at)} (identity: ${s.verified_by})`);
+      if (r.valid) lines.push(`Signed by ${s.name} <${s.email}> on ${when(m.signed_at)} (identity: ${s.verified_by})` + (m.meaning ? `, meaning: ${m.meaning}` : ""));
     }
     lines.push(`Signed with this service's keys: ${r.trusted_keys ? "yes" : "no"}`);
     (r.errors || []).forEach((e) => lines.push("Problem: " + e));

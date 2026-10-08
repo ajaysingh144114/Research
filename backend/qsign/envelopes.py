@@ -15,6 +15,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from .bundle import build_manifest, canonical, sign_manifest, verify_bundle
+from .esign import disclosure_record
 from .identity import Principal
 
 EVIDENCE_FORMAT = "qsign-evidence/1"
@@ -51,6 +52,7 @@ def create_envelope(
     sequential: bool = True,
     message: str = "",
     expires_in_days: int = 30,
+    consumer_disclosure: str | None = None,
     now: datetime | None = None,
 ) -> dict:
     title = title.strip()[:200]
@@ -74,6 +76,12 @@ def create_envelope(
         people.append(
             {"email": email, "name": str(s.get("name") or email)[:200], "order": i + 1, "status": "pending"}
         )
+    disclosure = None
+    if consumer_disclosure is not None:
+        try:
+            disclosure = disclosure_record(consumer_disclosure)
+        except ValueError as exc:
+            raise EnvelopeError(str(exc)) from exc
     t = _now(now)
     return {
         "id": str(uuid.uuid4()),
@@ -91,6 +99,7 @@ def create_envelope(
         "sequential": bool(sequential),
         "status": "open",
         "signers": people,
+        "consumer_disclosure": disclosure,
         "seal": None,
     }
 
@@ -141,6 +150,8 @@ def sign_envelope(
     reason: str = "",
     location: str = "",
     jurisdiction: str = "OTHER",
+    meaning: str | None = None,
+    disclosure_accepted: bool = False,
     now: datetime | None = None,
 ) -> dict:
     """Add `who`'s signature. Returns their bundle; mutates `env`."""
@@ -150,6 +161,9 @@ def sign_envelope(
         raise EnvelopeError("consent to sign electronically is required")
     if str(sha512).lower() != env["document"]["sha512"]:
         raise EnvelopeError("this is not the document in the envelope (hash does not match)")
+    disclosure = env.get("consumer_disclosure")
+    if disclosure and not disclosure_accepted:
+        raise EnvelopeError("read the consumer disclosure and consent to electronic records before signing")
     t = _now(now)
     manifest = build_manifest(
         document=env["document"],
@@ -164,6 +178,8 @@ def sign_envelope(
             "signer_order": slot["order"],
             "total_signers": len(env["signers"]),
         },
+        meaning=meaning,
+        consumer_disclosure={"sha256": disclosure["sha256"], "accepted": True} if disclosure else None,
     )
     bundle = sign_manifest(manifest, signers)
     slot.update(status="signed", signed_at=_iso(t), bundle=bundle, name=who.name)
@@ -277,10 +293,20 @@ def verify_evidence(
                 "email": (m.get("signer") or {}).get("email"),
                 "name": (m.get("signer") or {}).get("name"),
                 "signed_at": m.get("signed_at"),
+                "meaning": m.get("meaning"),
                 "identity": (m.get("signer") or {}).get("verified_by"),
                 "valid": ok,
             }
         )
+    disclosure = env.get("consumer_disclosure")
+    if disclosure:
+        text_sha = hashlib.sha256(str(disclosure.get("text", "")).encode("utf-8")).hexdigest()
+        if text_sha != disclosure.get("sha256"):
+            errors.append("the consumer disclosure text was changed")
+        for s in env.get("signers") or []:
+            accepted = ((s.get("bundle") or {}).get("manifest") or {}).get("consumer_disclosure") or {}
+            if accepted.get("sha256") != disclosure.get("sha256") or not accepted.get("accepted"):
+                errors.append(f"signer {s.get('order')} did not accept this consumer disclosure")
     if len(signer_reports) != len(sealed_signers):
         errors.append("number of signatures does not match the seal")
     return {

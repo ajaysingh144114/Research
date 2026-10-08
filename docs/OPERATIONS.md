@@ -145,5 +145,7 @@ Give the task role the same permissions as the Lambda function in
 | `QSIGN_ALLOW_UNAUTHENTICATED` | `1` = development mode with self-declared identity. Refused together with `kms` |
 | `QSIGN_RETIRED_KEY_FINGERPRINTS` | Old key fingerprints that remain trusted after rotation |
 | `QSIGN_AUTO_INVITE_SIGNERS` | `1` = create guest accounts for envelope signers who have none |
-| `QSIGN_TRIAL_DAYS` | Length of the free trial for new organisations (default 30) |
+| `QSIGN_TRIAL_DAYS` | Length of the free trial for new organisations (default 30; deploy setting `TrialDays`) |
+| `QSIGN_MLDSA_ALG` | `ML-DSA-65` (default) or `ML-DSA-87` for NSA CNSA 2.0 (deploy setting `PostQuantumAlgorithm`) |
+| `QSIGN_SIGNING_REAUTH_MINUTES` | Above 0: signers re-enter password and authenticator code if they last did so longer ago (FDA 21 CFR Part 11; deploy setting `SigningReauthMinutes`) |
 | Others | See section 9 |

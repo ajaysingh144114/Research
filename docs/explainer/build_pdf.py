@@ -276,7 +276,7 @@ def on_page(canvas, doc):
     canvas.saveState()
     canvas.setFont("Sans", 7.5)
     canvas.setFillColor(MUTED)
-    canvas.drawString(MARGIN, 10 * mm, "QSign: how it works  ·  v0.3  ·  October 2026")
+    canvas.drawString(MARGIN, 10 * mm, "QSign: how it works  ·  v0.4  ·  October 2026")
     canvas.drawRightString(PAGE_W - MARGIN, 10 * mm, f"Page {doc.page}")
     canvas.setStrokeColor(LINE)
     canvas.line(MARGIN, 13 * mm, PAGE_W - MARGIN, 13 * mm)
@@ -296,7 +296,7 @@ def on_cover(canvas, doc):
     canvas.drawString(MARGIN, PAGE_H - 70 * mm, "A plain-language guide for owners, customers and security teams")
     canvas.setFillColor(MUTED)
     canvas.setFont("Sans", 8.5)
-    canvas.drawString(MARGIN, 18 * mm, "Version 0.3  ·  October 2026  ·  Justivia Legal Ventures LLP  ·  Commercial software, free verifier")
+    canvas.drawString(MARGIN, 18 * mm, "Version 0.4  ·  October 2026  ·  Justivia Legal Ventures LLP  ·  Commercial software, free verifier")
     canvas.drawString(MARGIN, 13 * mm, "This guide explains technology. It is not legal advice.")
     canvas.restoreState()
 
@@ -507,8 +507,8 @@ def build():
     s += chapter(8, "The law: USA, India, EU", "Strong cryptography is necessary but not sufficient. Each region also cares about who vouches for the signer's identity.")
     s.append(table([
         ["", "QSign today", "Needed for the highest level"],
-        ["<b>USA</b><br/>ESIGN Act, UETA", "Valid for most business contracts. The law is technology-neutral: intent, consent, a link to the record and a retained record, all of which QSign provides.",
-         "Federal agencies: FedRAMP authorisation (e.g. AWS GovCloud) and identity proofing to NIST SP 800-63. Some documents (wills, court orders) are excluded from e-signing."],
+        ["<b>USA</b><br/>ESIGN Act, UETA", "Valid for most business contracts. The law is technology-neutral: intent, consent, a link to the record and a retained record, all of which QSign provides. Also supports the ESIGN consumer disclosure and FDA Part 11 signature meaning and re-login.",
+         "Buyers ask for SOC 2 Type II. Federal: FedRAMP, Trade Agreements Act, ML-DSA-87 for CNSA 2.0. Wills and court orders are excluded. See US-READINESS.md."],
         ["<b>India</b><br/>IT Act 2000", "Useful supporting evidence, but not a 'digital signature' or 'electronic signature' that gets automatic legal recognition.",
          "Integrate a CCA-empanelled eSign Service Provider (Aadhaar eSign) or a licensed Certifying Authority. QSign then adds its ML-DSA signature on top for quantum safety."],
         ["<b>European Union</b><br/>eIDAS / eIDAS 2", "An <i>advanced</i> electronic signature (AdES) with MFA-verified signers and a full audit trail.",

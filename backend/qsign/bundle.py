@@ -22,6 +22,8 @@ from .algorithms import ALGORITHMS, fingerprint, is_post_quantum, verify
 from .signers import Signer
 
 JURISDICTIONS = {"US", "IN", "EU", "OTHER"}
+# What the signature means (FDA 21 CFR 11.50 requires it to be shown with every signature).
+MEANINGS = ("agreement", "approval", "review", "authorship", "responsibility", "acknowledgement", "witness")
 DEFAULT_INTENT = "I have reviewed this document and I intend to sign it electronically."
 
 
@@ -58,9 +60,13 @@ def build_manifest(
     intent: str = DEFAULT_INTENT,
     signed_at: datetime | None = None,
     envelope: dict | None = None,
+    meaning: str | None = None,
+    consumer_disclosure: dict | None = None,
 ) -> dict:
     if jurisdiction not in JURISDICTIONS:
         raise ValueError(f"jurisdiction must be one of {sorted(JURISDICTIONS)}")
+    if meaning is not None and meaning not in MEANINGS:
+        raise ValueError(f"meaning must be one of {list(MEANINGS)}")
     sha512 = str(document.get("sha512", "")).lower()
     if len(sha512) != 128 or any(c not in "0123456789abcdef" for c in sha512):
         raise ValueError("document.sha512 must be a 128-character hex digest")
@@ -80,8 +86,12 @@ def build_manifest(
         "jurisdiction": jurisdiction,
         "signed_at": when.strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
+    if meaning:
+        manifest["meaning"] = meaning
     if envelope:
         manifest["envelope"] = envelope
+    if consumer_disclosure:
+        manifest["consumer_disclosure"] = consumer_disclosure
     return manifest
 
 

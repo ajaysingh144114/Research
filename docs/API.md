@@ -22,11 +22,11 @@ characters (`sha512`).
 |---|---|
 | `GET /api/me` | Email, name, organisation, admin flag |
 | `GET /api/plan` | Your organisation's plan: `plan` (`trial`, `business`, `enterprise`, or `guest`), `active`, `expires_at`, `days_left` |
-| `POST /api/sign` | Sign a document yourself (needs an active plan; not for guests). Body: `document {name, size, sha512}`, `consent: true`, optional `reason`, `location`, `jurisdiction` (`US`, `IN`, `EU`, `OTHER`). Returns `bundle` |
-| `POST /api/envelopes` | Create an envelope. Body: `title`, `document`, `signers [{email, name}]`, `sequential` (default true), `message`, `expires_in_days` (1-365). Needs an active plan. Guests cannot send |
+| `POST /api/sign` | Sign a document yourself (needs an active plan; not for guests). Body: `document {name, size, sha512}`, `consent: true`, optional `reason`, `location`, `jurisdiction` (`US`, `IN`, `EU`, `OTHER`), `meaning` (`agreement` default, `approval`, `review`, `authorship`, `responsibility`, `acknowledgement`, `witness`). Returns `bundle` |
+| `POST /api/envelopes` | Create an envelope. Body: `title`, `document`, `signers [{email, name}]`, `sequential` (default true), `message`, `expires_in_days` (1-365), optional `consumer_disclosure` (text signers must accept first, US ESIGN §101(c); `/api/config` gives a template). Needs an active plan. Guests cannot send |
 | `GET /api/envelopes` | Envelopes you sent or must sign, newest first, with `my_turn` |
 | `GET /api/envelopes/{id}` | One envelope |
-| `POST /api/envelopes/{id}/sign` | Sign when it is your turn. Body: `sha512` (must match), `consent: true`, optional `reason`, `location`, `jurisdiction` |
+| `POST /api/envelopes/{id}/sign` | Sign when it is your turn. Body: `sha512` (must match), `consent: true`, optional `reason`, `location`, `jurisdiction`, `meaning`; `disclosure_accepted: true` when the envelope has a consumer disclosure |
 | `POST /api/envelopes/{id}/decline` | Decline with an optional `reason`; the envelope stops |
 | `POST /api/envelopes/{id}/cancel` | Sender or organisation admin stops an open envelope |
 | `GET /api/envelopes/{id}/evidence` | Evidence pack, once completed |
@@ -40,7 +40,7 @@ characters (`sha512`).
 
 ## Errors
 
-`400` invalid input · `401` not signed in · `402` your organisation's trial or plan has ended, or a guest tried to sign their own document · `403` not allowed · `404` not found
+`400` invalid input · `401` not signed in, or `{"code": "reauth_required"}` when the deployment requires a fresh password and code to sign · `402` your organisation's trial or plan has ended, or a guest tried to sign their own document · `403` not allowed · `404` not found
 (also returned when you may not see an envelope) · `409` wrong state, not your
 turn, or a concurrent change (reload and retry).
 

@@ -110,7 +110,8 @@ def load_local_signers(directory: str | Path) -> list[Signer]:
 def signers_from_env() -> list[Signer]:
     """Build the signer set from environment variables.
 
-    QSIGN_MODE=kms   -> QSIGN_KMS_MLDSA_KEY_ID and QSIGN_KMS_ECDSA_KEY_ID (AWS)
+    QSIGN_MODE=kms   -> QSIGN_KMS_MLDSA_KEY_ID and QSIGN_KMS_ECDSA_KEY_ID (AWS), and
+                        QSIGN_MLDSA_ALG = ML-DSA-65 (default) or ML-DSA-87 (NSA CNSA 2.0)
     QSIGN_MODE=local -> QSIGN_LOCAL_KEY_DIR (default ./keys)
     """
     mode = os.environ.get("QSIGN_MODE", "local")
@@ -118,8 +119,11 @@ def signers_from_env() -> list[Signer]:
         import boto3
 
         kms = boto3.client("kms")
+        pq_alg = os.environ.get("QSIGN_MLDSA_ALG", "ML-DSA-65")
+        if pq_alg not in ("ML-DSA-65", "ML-DSA-87"):
+            raise ValueError("QSIGN_MLDSA_ALG must be ML-DSA-65 or ML-DSA-87")
         return [
-            KmsSigner(kms, os.environ["QSIGN_KMS_MLDSA_KEY_ID"], "ML-DSA-65"),
+            KmsSigner(kms, os.environ["QSIGN_KMS_MLDSA_KEY_ID"], pq_alg),
             KmsSigner(kms, os.environ["QSIGN_KMS_ECDSA_KEY_ID"], "ECDSA-P384-SHA384"),
         ]
     if mode == "local":

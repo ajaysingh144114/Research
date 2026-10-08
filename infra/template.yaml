@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  QSign - quantum-safe hybrid e-signatures. ML-DSA-65 + ECDSA P-384 keys in AWS KMS,
+  QSign - quantum-safe hybrid e-signatures. ML-DSA (65 or 87) + ECDSA P-384 keys in AWS KMS,
   Cognito sign-in, write-once (Object Lock) archive in S3 and an audit table in DynamoDB.
 
 Parameters:
@@ -30,8 +30,24 @@ Parameters:
     Type: Number
     Default: 365
     AllowedValues: [30, 90, 180, 365, 731, 1827, 3653]
+  PostQuantumAlgorithm:
+    Type: String
+    Default: ML-DSA-65
+    AllowedValues: [ML-DSA-65, ML-DSA-87]
+    Description: ML-DSA-87 is required by NSA CNSA 2.0 for US national security systems. Changing it later creates a new key (list the old fingerprint as retired).
+  SigningReauthMinutes:
+    Type: Number
+    Default: 0
+    MinValue: 0
+    Description: If above 0, people must re-enter their password and authenticator code to sign when they last did so longer ago than this (FDA 21 CFR Part 11). 0 = off.
+  TrialDays:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    Description: Length of the free trial for new organisations.
 
 Conditions:
+  UseMlDsa87: !Equals [!Ref PostQuantumAlgorithm, ML-DSA-87]
   HasSesSender: !Not [!Equals [!Ref SesSenderEmail, ""]]
   HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
 
@@ -48,8 +64,8 @@ Resources:
   MlDsaKey:
     Type: AWS::KMS::Key
     Properties:
-      Description: QSign post-quantum signing key (ML-DSA-65, NIST FIPS 204)
-      KeySpec: ML_DSA_65
+      Description: !Sub QSign post-quantum signing key (${PostQuantumAlgorithm}, NIST FIPS 204)
+      KeySpec: !If [UseMlDsa87, ML_DSA_87, ML_DSA_65]
       KeyUsage: SIGN_VERIFY
       EnableKeyRotation: false
       KeyPolicy:
@@ -269,6 +285,9 @@ Resources:
         Variables:
           QSIGN_MODE: kms
           QSIGN_KMS_MLDSA_KEY_ID: !GetAtt MlDsaKey.Arn
+          QSIGN_MLDSA_ALG: !Ref PostQuantumAlgorithm
+          QSIGN_SIGNING_REAUTH_MINUTES: !Ref SigningReauthMinutes
+          QSIGN_TRIAL_DAYS: !Ref TrialDays
           QSIGN_KMS_ECDSA_KEY_ID: !GetAtt EcdsaKey.Arn
           QSIGN_AUDIT_TABLE: !Ref AuditTable
           QSIGN_ARCHIVE_BUCKET: !Ref ArchiveBucket

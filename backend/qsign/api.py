@@ -10,6 +10,7 @@ what a caller types.
 from __future__ import annotations
 
 import os
+import time
 from functools import lru_cache
 from importlib import resources
 
@@ -20,7 +21,7 @@ from pydantic import BaseModel, Field
 from . import __version__
 from .algorithms import fingerprint
 from .audit import AuditLog, audit_from_env
-from .bundle import JURISDICTIONS, build_manifest, sign_manifest, verify_bundle
+from .bundle import JURISDICTIONS, MEANINGS, build_manifest, sign_manifest, verify_bundle
 from .envelopes import (
     EnvelopeError,
     awaiting,
@@ -33,6 +34,7 @@ from .envelopes import (
     sign_envelope,
     verify_evidence,
 )
+from .esign import DEFAULT_DISCLOSURE, MAX_DISCLOSURE
 from .identity import GUEST_ORG, Principal, current_principal, dev_mode, require_admin
 from .plans import PlanStore, plan_store_from_env, status as plan_status
 from .services import Directory, Notifier, directory_from_env, notifier_from_env
@@ -56,6 +58,7 @@ class SignRequest(BaseModel):
     reason: str = Field("", max_length=500)
     location: str = Field("", max_length=200)
     jurisdiction: str = "OTHER"
+    meaning: str = "agreement"
 
 
 class VerifyRequest(BaseModel):
@@ -76,6 +79,7 @@ class EnvelopeIn(BaseModel):
     sequential: bool = True
     message: str = Field("", max_length=2000)
     expires_in_days: int = Field(30, ge=1, le=365)
+    consumer_disclosure: str | None = Field(None, max_length=MAX_DISCLOSURE)
 
 
 class EnvelopeSignIn(BaseModel):
@@ -84,6 +88,8 @@ class EnvelopeSignIn(BaseModel):
     reason: str = Field("", max_length=500)
     location: str = Field("", max_length=200)
     jurisdiction: str = "OTHER"
+    meaning: str = "agreement"
+    disclosure_accepted: bool = False
 
 
 class DeclineIn(BaseModel):
@@ -142,6 +148,23 @@ def trusted_fingerprints(signers: list[Signer]) -> list[str]:
     """Current keys plus retired ones, so signatures made before a key rotation stay trusted."""
     retired = [f.strip() for f in os.environ.get("QSIGN_RETIRED_KEY_FINGERPRINTS", "").split(",") if f.strip()]
     return [fingerprint(s.public_key_der()) for s in signers] + retired
+
+
+def signing_reauth_minutes() -> int:
+    return int(os.environ.get("QSIGN_SIGNING_REAUTH_MINUTES", "0") or 0)
+
+
+def require_recent_login(who: Principal) -> None:
+    """With QSIGN_SIGNING_REAUTH_MINUTES set, signing needs a password + MFA entered that recently
+    (FDA 21 CFR 11.200: every signing outside one continuous session uses all signature components)."""
+    minutes = signing_reauth_minutes()
+    if minutes <= 0:
+        return
+    if who.auth_time is None and dev_mode():
+        return
+    if who.auth_time is None or time.time() - who.auth_time > minutes * 60:
+        raise HTTPException(401, {"code": "reauth_required",
+                                  "message": "Confirm your password and authenticator code to sign."})
 
 
 def _ip(request: Request) -> str | None:
@@ -212,6 +235,9 @@ def create_app() -> FastAPI:
             "cognito_client_id": os.environ.get("QSIGN_COGNITO_CLIENT_ID", ""),
             "auth_required": not dev_mode(),
             "jurisdictions": sorted(JURISDICTIONS),
+            "meanings": list(MEANINGS),
+            "signing_reauth_minutes": signing_reauth_minutes(),
+            "esign_disclosure_template": DEFAULT_DISCLOSURE,
             "version": __version__,
         }
 
@@ -262,6 +288,7 @@ def create_app() -> FastAPI:
         require_active_plan(who, plans)
         if not body.consent:
             raise HTTPException(400, "consent to sign electronically is required")
+        require_recent_login(who)
         try:
             manifest = build_manifest(
                 document=body.document.model_dump(),
@@ -269,6 +296,7 @@ def create_app() -> FastAPI:
                 reason=body.reason,
                 location=body.location,
                 jurisdiction=body.jurisdiction,
+                meaning=body.meaning,
             )
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
@@ -298,6 +326,7 @@ def create_app() -> FastAPI:
             sequential=body.sequential,
             message=body.message,
             expires_in_days=body.expires_in_days,
+            consumer_disclosure=body.consumer_disclosure,
         )
         if os.environ.get("QSIGN_AUTO_INVITE_SIGNERS") == "1":
             for s in env["signers"]:
@@ -352,9 +381,13 @@ def create_app() -> FastAPI:
         notifier: Notifier = Depends(get_notifier),
     ):
         env = _load(store, envelope_id, who)
+        if body.meaning not in MEANINGS:
+            raise HTTPException(400, f"meaning must be one of {list(MEANINGS)}")
+        require_recent_login(who)
         bundle = sign_envelope(
             env, who, sha512=body.sha512, consent=body.consent, signers=signers,
             reason=body.reason, location=body.location, jurisdiction=body.jurisdiction,
+            meaning=body.meaning, disclosure_accepted=body.disclosure_accepted,
         )
         _save(store, env)
         audit.write(

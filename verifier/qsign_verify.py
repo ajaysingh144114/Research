@@ -165,7 +165,16 @@ def verify_evidence(evidence: dict, *, document_digests: dict | None = None, tru
             trusted_all = trusted_all and bool(rep["trusted_keys"])
         signer = m.get("signer") or {}
         signers.append({"order": s.get("order"), "email": signer.get("email"), "name": signer.get("name"),
-                        "signed_at": m.get("signed_at"), "identity": signer.get("verified_by"), "valid": ok})
+                        "signed_at": m.get("signed_at"), "meaning": m.get("meaning"), "identity": signer.get("verified_by"), "valid": ok})
+    disclosure = env.get("consumer_disclosure")
+    if disclosure:
+        text_sha = hashlib.sha256(str(disclosure.get("text", "")).encode("utf-8")).hexdigest()
+        if text_sha != disclosure.get("sha256"):
+            errors.append("the consumer disclosure text was changed")
+        for s in env.get("signers") or []:
+            accepted = ((s.get("bundle") or {}).get("manifest") or {}).get("consumer_disclosure") or {}
+            if accepted.get("sha256") != disclosure.get("sha256") or not accepted.get("accepted"):
+                errors.append(f"signer {s.get('order')} did not accept this consumer disclosure")
     if len(signers) != len(sealed_signers):
         errors.append("number of signatures does not match the seal")
     return {"valid": not errors, "errors": errors, "trusted_keys": trusted_all, "title": env.get("title"),
@@ -197,13 +206,16 @@ def main(argv=None) -> int:
         if "signers" in report:
             print(f"  envelope: {report.get('title')}  completed {report.get('completed_at')}")
             for s in report["signers"]:
-                print(f"  {s['order']}. {s['name']} <{s['email']}> at {s['signed_at']}  {'ok' if s['valid'] else 'FAILED'}")
+                meaning = f" ({s['meaning']})" if s.get("meaning") else ""
+                print(f"  {s['order']}. {s['name']} <{s['email']}>{meaning} at {s['signed_at']}  {'ok' if s['valid'] else 'FAILED'}")
         else:
             for s in report["signatures"]:
                 print(f"  {s['alg']:<20} {'ok' if s['valid'] else 'FAILED'}  key {str(s['key_fingerprint'])[:16]}")
             signer = report["manifest"].get("signer", {})
             if report["valid"]:
-                print(f"  signed by {signer.get('name')} <{signer.get('email')}> at {report['manifest'].get('signed_at')}")
+                meaning = report["manifest"].get("meaning")
+                print(f"  signed by {signer.get('name')} <{signer.get('email')}> at {report['manifest'].get('signed_at')}"
+                      + (f", meaning: {meaning}" if meaning else ""))
         if trusted is not None:
             print(f"  keys trusted: {'yes' if report['trusted_keys'] else 'NO'}")
         for err in report["errors"]:
