@@ -1,0 +1,82 @@
+QSign Commercial Licence
+Version 1.0, October 2026
+
+Copyright (c) 2026 Justivia Legal Ventures LLP. All rights reserved.
+
+QSign (the "Software") is proprietary software owned by Justivia Legal
+Ventures LLP ("Justivia"). It is licensed, not sold. By installing, deploying,
+copying or using the Software you ("Customer") agree to this licence.
+
+1. Scope
+   This licence covers every file in this repository except the files in the
+   `verifier/` folder, which are licensed separately under the Apache License,
+   Version 2.0 (see `verifier/LICENSE`).
+
+2. Free trial
+   Justivia grants Customer a limited, non-exclusive, non-transferable,
+   revocable licence to use the Software for evaluation for 30 days from the
+   first time a member of Customer's organisation uses it (the "Trial"),
+   unless Justivia agrees in writing to a different period. Signatures created
+   during the Trial remain valid after the Trial ends.
+
+3. Paid subscription
+   After the Trial, Customer may use the Software only while Customer holds a
+   paid subscription from Justivia (directly, through AWS Marketplace or
+   through an authorised reseller) and only within the plan, organisations,
+   users and term Customer has paid for (the "Subscription"). The order form
+   or marketplace listing for the Subscription forms part of this licence.
+
+4. Restrictions
+   Unless Justivia agrees in writing, Customer must not:
+   a. copy, modify, translate or create derivative works of the Software,
+      except as needed to deploy and configure it under a Subscription;
+   b. sell, sublicense, rent, lend, publish or distribute the Software, or
+      offer it to third parties as a hosted or managed service;
+   c. remove, disable or work around the Trial, Subscription or plan checks
+      in the Software, or any copyright or licence notice;
+   d. use the Software beyond the Trial or Subscription, or to build a
+      competing product.
+   Reverse engineering is not permitted except to the extent applicable law
+   allows it despite this restriction.
+
+5. Customer data and signatures
+   Customer owns its documents, signatures, evidence packs and audit records.
+   Every signature and evidence pack made with the Software can be verified
+   at any time, without a Subscription, using the free verifier in
+   `verifier/`.
+
+6. Ownership
+   Justivia and its licensors keep all rights, title and interest in the
+   Software. No rights are granted except those stated in this licence.
+
+7. Ending the licence
+   This licence ends automatically when the Trial or Subscription ends, or if
+   Customer breaches it. Customer must then stop using the Software, except
+   that Customer may keep and verify everything it signed with it.
+
+8. No warranty
+   Except as stated in a signed agreement with Justivia, the Software is
+   provided "AS IS", without warranties of any kind, express or implied,
+   including merchantability, fitness for a particular purpose and
+   non-infringement. Customer is responsible for confirming that QSign
+   signatures meet the legal requirements of its jurisdiction and use case.
+
+9. Limitation of liability
+   To the maximum extent permitted by law, Justivia will not be liable for any
+   indirect, incidental, special, consequential or punitive damages, or for
+   lost profits, revenue or data, arising from the Software. Justivia's total
+   liability under this licence will not exceed the fees Customer paid for the
+   Software in the 12 months before the claim.
+
+10. Governing law
+   This licence is governed by the laws of India, and the courts of New Delhi
+   have exclusive jurisdiction, unless a signed agreement with Justivia says
+   otherwise.
+
+Earlier versions of this software that were published under the Apache
+License, Version 2.0 (up to and including commit ad5f517) remain available
+under that licence to anyone who received them. This licence applies to all
+later versions.
+
+For a Subscription, an enterprise agreement or any other licence, contact
+Justivia Legal Ventures LLP.

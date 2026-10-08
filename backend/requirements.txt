@@ -1,0 +1,4 @@
+cryptography>=48.0.0
+fastapi>=0.115
+mangum>=0.19
+boto3>=1.40
