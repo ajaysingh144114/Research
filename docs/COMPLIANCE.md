@@ -31,7 +31,8 @@ Two facts sit behind every row:
 - **Keys never leave AWS hardware.** Private keys are created inside AWS KMS and
   cannot be exported. Only the Lambda function can ask KMS to sign.
 - **Signer identity from a real login.** The signer's name and email come from
-  Amazon Cognito after sign-in, not from anything typed into the form.
+  Amazon Cognito after sign-in with a password and an authenticator app (MFA),
+  not from anything typed into the form. Accounts are invite-only.
 - **Explicit consent.** The signer must tick "I agree to sign electronically",
   and that intent statement is part of what gets signed.
 - **Tamper-evident record.** Every signature is written to DynamoDB (with
@@ -68,7 +69,7 @@ utility shut-off, eviction). Check before using QSign for these.
   QSign in AWS GovCloud (US) and using FedRAMP-authorised services is the usual
   path; the authorisation itself is a separate project.
 - **Identity:** agencies expect identity proofing to NIST SP 800-63 (IAL2/AAL2
-  or higher). Add MFA in Cognito and an identity-verification step for this.
+  or higher). QSign already requires MFA; add an identity-proofing step for this.
 
 ## India
 
@@ -122,8 +123,8 @@ they are electronic.
 **Note on "sole control":** QSign signs with a service key held in KMS, and the
 signer authorises it by logging in. Remote signing like this is accepted for
 AdES when the provider's controls are strong (the CEN/ETSI remote signing
-standards describe how). For the strongest position, add MFA and keep the
-Cognito and CloudTrail logs.
+standards describe how). QSign requires MFA for every account; keep the
+Cognito, API access and CloudTrail logs as part of the evidence.
 
 **Getting to QES:** integrate a QTSP's remote signing API (many offer one)
 following ETSI EN 319 142 (PAdES) or EN 319 122 (CAdES). The QTSP issues the
@@ -146,7 +147,8 @@ for EU customers and sign a data processing agreement with each customer.
 
 | Priority | Item | Why |
 |---|---|---|
-| 1 | Turn on MFA in Cognito | Needed for EU AdES and US federal identity levels |
+| ✓ | MFA required for every account (done in v0.2) | Needed for EU AdES and US federal identity levels |
+| ✓ | Multi-signer envelopes with a sealed evidence pack (done in v0.2) | Shows who signed what, in which order, and that nothing changed |
 | 2 | Trusted timestamp (RFC 3161 TSA) on every signature | Proves *when* it was signed, independently of your servers |
 | 3 | PDF output (PAdES) with the signature embedded | So Adobe Reader and similar tools show the signature |
 | 4 | India: integrate a CCA-empanelled ESP | Legal recognition under the IT Act |

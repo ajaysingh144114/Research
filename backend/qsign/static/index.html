@@ -5,181 +5,514 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>QSign</title>
 <style>
-  :root { --bg:#f7f8fa; --card:#fff; --text:#1b1f24; --muted:#5b6470; --line:#dde1e6; --accent:#1f5fbf; --ok:#1d7a3e; --bad:#b42318; }
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1b1f24; --muted:#5b6470; --line:#dde1e6; --accent:#1f5fbf; --accent-text:#fff; --ok:#1d7a3e; --bad:#b42318; --warn:#9a6700; --chip:#eef2f7; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#111418; --card:#1a1f25; --text:#e8ebef; --muted:#9aa4b0; --line:#2d343c; --accent:#6aa1f0; --ok:#4cc27a; --bad:#f07167; }
+    :root { --bg:#101317; --card:#181d23; --text:#e8ebef; --muted:#9aa4b0; --line:#2c333b; --accent:#6aa1f0; --accent-text:#0b1220; --ok:#4cc27a; --bad:#f07167; --warn:#e3b341; --chip:#222a33; }
   }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui, sans-serif; }
-  main { max-width:720px; margin:0 auto; padding:24px 16px 48px; }
-  h1 { font-size:22px; margin:0 0 4px; }
-  p.sub { color:var(--muted); margin:0 0 20px; }
-  .tabs { display:flex; gap:8px; margin-bottom:16px; }
-  .tabs button { flex:1; }
-  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { border-bottom:1px solid var(--line); background:var(--card); }
+  .bar { max-width:900px; margin:0 auto; padding:12px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .brand { font-weight:700; font-size:18px; margin-right:auto; }
+  .who { color:var(--muted); font-size:13px; }
+  main { max-width:900px; margin:0 auto; padding:20px 16px 48px; }
+  nav { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+  nav button { background:transparent; color:var(--text); border:1px solid var(--line); }
+  nav button.on { background:var(--accent); color:var(--accent-text); border-color:var(--accent); }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:16px; }
+  h2 { font-size:17px; margin:0 0 6px; } h3 { font-size:15px; margin:16px 0 6px; }
+  p.hint, small { color:var(--muted); }
   label { display:block; font-weight:600; margin:12px 0 4px; }
-  input, select { width:100%; padding:9px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--text); font:inherit; }
-  input[type=checkbox] { width:auto; margin-right:8px; }
+  input, select, textarea { width:100%; padding:9px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--text); font:inherit; }
+  input[type=checkbox] { width:auto; margin:3px 8px 0 0; }
   .check { display:flex; align-items:flex-start; font-weight:400; }
-  button { padding:10px 14px; border-radius:6px; border:1px solid var(--accent); background:var(--accent); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  button { padding:9px 14px; border-radius:6px; border:1px solid var(--accent); background:var(--accent); color:var(--accent-text); font:inherit; font-weight:600; cursor:pointer; }
   button.ghost { background:transparent; color:var(--accent); }
+  button.danger { background:transparent; color:var(--bad); border-color:var(--bad); }
   button:disabled { opacity:.5; cursor:default; }
-  .row { display:flex; gap:12px; } .row > div { flex:1; }
-  @media (max-width:520px) { .row { flex-direction:column; gap:0; } }
-  #out { margin-top:16px; white-space:pre-wrap; word-break:break-word; font-size:14px; }
-  .ok { color:var(--ok); font-weight:700; } .bad { color:var(--bad); font-weight:700; }
-  .hidden { display:none; }
-  small { color:var(--muted); }
+  .row { display:flex; gap:12px; } .row > * { flex:1; min-width:0; }
+  @media (max-width:560px) { .row { flex-direction:column; gap:0; } }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .msg { margin-top:12px; white-space:pre-wrap; word-break:break-word; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
+  .hidden { display:none !important; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; }
+  .chip { display:inline-block; padding:1px 8px; border-radius:10px; background:var(--chip); font-size:12px; font-weight:600; }
+  .scroll { overflow-x:auto; }
+  .signer-row { display:flex; gap:8px; margin-top:6px; } .signer-row input { flex:1; min-width:0; }
+  code { font-size:13px; word-break:break-all; }
 </style>
 </head>
 <body>
+<header><div class="bar">
+  <div class="brand">QSign</div>
+  <span id="whoami" class="who"></span>
+  <button id="logoutBtn" class="ghost hidden">Sign out</button>
+</div></header>
 <main>
-  <h1>QSign</h1>
-  <p class="sub">Quantum-safe electronic signatures. Each document is signed with ML-DSA-65 (NIST FIPS 204) and ECDSA P-384. Your file is hashed in this browser and never uploaded.</p>
-
-  <div class="tabs">
-    <button id="tabSign">Sign</button>
-    <button id="tabVerify" class="ghost">Verify</button>
-  </div>
-
-  <section id="signPane">
-    <div id="loginBox">
+  <!-- Sign-in -->
+  <section id="loginPane" class="hidden">
+    <h2>Sign in</h2>
+    <p class="hint" id="loginHint">Use the account your organisation created for you.</p>
+    <div id="loginStep">
       <div class="row">
         <div><label for="email">Email</label><input id="email" type="email" autocomplete="username"></div>
         <div id="pwWrap"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password"></div>
-        <div id="nameWrap" class="hidden"><label for="name">Full name</label><input id="name"></div>
       </div>
-      <small id="authNote"></small>
+      <div id="devWrap" class="hidden">
+        <div class="row">
+          <div><label for="devName">Full name</label><input id="devName"></div>
+          <div><label for="devOrg">Organisation id</label><input id="devOrg" value="dev-org"></div>
+        </div>
+        <label class="check"><input id="devAdmin" type="checkbox">Organisation administrator</label>
+      </div>
     </div>
-    <label for="docSign">Document</label>
-    <input id="docSign" type="file">
+    <div id="newPwStep" class="hidden">
+      <label for="newPw">Choose a new password</label><input id="newPw" type="password" autocomplete="new-password">
+      <small>At least 12 characters with upper and lower case letters, a number and a symbol.</small>
+    </div>
+    <div id="mfaSetupStep" class="hidden">
+      <p>Add QSign to an authenticator app (Google Authenticator, Microsoft Authenticator, Authy) using this key:</p>
+      <p><code id="mfaSecret"></code></p>
+      <p><a id="mfaLink" href="#">Open in authenticator app</a></p>
+    </div>
+    <div id="mfaStep" class="hidden">
+      <label for="mfaCode">6-digit code from your authenticator app</label><input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6">
+    </div>
+    <div class="actions"><button id="loginBtn">Continue</button></div>
+    <div id="loginMsg" class="msg" aria-live="polite"></div>
+  </section>
+
+  <nav id="tabs" class="hidden">
+    <button data-tab="inbox" class="on">Envelopes</button>
+    <button data-tab="send">Send for signature</button>
+    <button data-tab="quick">Sign myself</button>
+    <button data-tab="verify">Verify</button>
+    <button data-tab="admin" class="hidden" id="adminTab">Admin</button>
+  </nav>
+
+  <!-- Envelopes inbox -->
+  <section id="inboxPane" class="hidden">
+    <h2>Envelopes</h2>
+    <p class="hint">Documents you sent or were asked to sign.</p>
+    <div class="actions"><button id="refreshBtn" class="ghost">Refresh</button></div>
+    <div class="scroll"><table><thead><tr><th>Title</th><th>From</th><th>Progress</th><th>Status</th></tr></thead><tbody id="inboxRows"></tbody></table></div>
+    <div id="inboxMsg" class="msg"></div>
+  </section>
+
+  <!-- Envelope detail -->
+  <section id="detailPane" class="hidden">
+    <button id="backBtn" class="ghost">← Back</button>
+    <h2 id="dTitle"></h2>
+    <p class="hint" id="dMeta"></p>
+    <p id="dMessage"></p>
+    <div class="scroll"><table><thead><tr><th>#</th><th>Signer</th><th>Status</th><th>When</th></tr></thead><tbody id="dSigners"></tbody></table></div>
+    <div id="dSignBox" class="hidden">
+      <h3>Your signature</h3>
+      <label for="dDoc">Select the document to confirm it is the same file</label><input id="dDoc" type="file">
+      <div class="row">
+        <div><label for="dReason">Reason</label><input id="dReason" placeholder="e.g. I approve this agreement"></div>
+        <div><label for="dJur">Jurisdiction</label><select id="dJur"><option>US</option><option>IN</option><option>EU</option><option selected>OTHER</option></select></div>
+      </div>
+      <label class="check"><input id="dConsent" type="checkbox">I have reviewed this document and I agree to sign it electronically.</label>
+      <div class="actions"><button id="dSignBtn">Sign</button><button id="dDeclineBtn" class="danger">Decline</button></div>
+    </div>
+    <div class="actions">
+      <button id="dEvidenceBtn" class="ghost hidden">Download evidence pack</button>
+      <button id="dCancelBtn" class="danger hidden">Cancel envelope</button>
+    </div>
+    <div id="dMsg" class="msg" aria-live="polite"></div>
+  </section>
+
+  <!-- Send -->
+  <section id="sendPane" class="hidden">
+    <h2>Send for signature</h2>
+    <p class="hint">Your file is hashed in this browser and never uploaded. Send signers the file separately; they confirm it before signing.</p>
+    <label for="sTitle">Title</label><input id="sTitle" placeholder="e.g. Master services agreement 2026">
+    <label for="sDoc">Document</label><input id="sDoc" type="file">
+    <label>Signers (in signing order)</label>
+    <div id="sSigners"></div>
+    <div class="actions"><button id="addSignerBtn" class="ghost">Add signer</button></div>
+    <label class="check"><input id="sSeq" type="checkbox" checked>Signers sign one after another, in this order</label>
+    <label for="sMsg">Message to signers</label><textarea id="sMsg" rows="3"></textarea>
+    <label for="sDays">Expires after (days)</label><input id="sDays" type="number" min="1" max="365" value="30">
+    <div class="actions"><button id="sendBtn">Send</button></div>
+    <div id="sendMsg" class="msg" aria-live="polite"></div>
+  </section>
+
+  <!-- Quick sign -->
+  <section id="quickPane" class="hidden">
+    <h2>Sign a document myself</h2>
+    <p class="hint">Signed with ML-DSA-65 (NIST FIPS 204) and ECDSA P-384. You get a .qsig.json signature file to keep with the document.</p>
+    <label for="qDoc">Document</label><input id="qDoc" type="file">
     <div class="row">
-      <div><label for="reason">Reason</label><input id="reason" placeholder="e.g. Approve contract"></div>
-      <div><label for="jur">Jurisdiction</label><select id="jur"><option>US</option><option>IN</option><option>EU</option><option selected>OTHER</option></select></div>
+      <div><label for="qReason">Reason</label><input id="qReason"></div>
+      <div><label for="qJur">Jurisdiction</label><select id="qJur"><option>US</option><option>IN</option><option>EU</option><option selected>OTHER</option></select></div>
     </div>
-    <label for="location">Location</label><input id="location" placeholder="City, country">
-    <label class="check"><input id="consent" type="checkbox">I have reviewed this document and I agree to sign it electronically.</label>
-    <p><button id="signBtn">Sign document</button></p>
+    <label for="qLoc">Location</label><input id="qLoc" placeholder="City, country">
+    <label class="check"><input id="qConsent" type="checkbox">I have reviewed this document and I agree to sign it electronically.</label>
+    <div class="actions"><button id="qSignBtn">Sign</button></div>
+    <div id="quickMsg" class="msg" aria-live="polite"></div>
   </section>
 
+  <!-- Verify (public) -->
   <section id="verifyPane" class="hidden">
-    <label for="docVerify">Document</label><input id="docVerify" type="file">
-    <label for="bundleFile">Signature file (.qsig.json)</label><input id="bundleFile" type="file" accept=".json">
-    <p><button id="verifyBtn">Verify</button></p>
+    <h2>Verify a signature</h2>
+    <p class="hint">Anyone can verify, no account needed. Choose the document and its .qsig.json signature file or evidence pack.</p>
+    <label for="vDoc">Document</label><input id="vDoc" type="file">
+    <label for="vFile">Signature file or evidence pack (.json)</label><input id="vFile" type="file" accept=".json,application/json">
+    <div class="actions"><button id="verifyBtn">Verify</button></div>
+    <div id="verifyMsg" class="msg" aria-live="polite"></div>
   </section>
 
-  <div id="out" aria-live="polite"></div>
+  <!-- Admin -->
+  <section id="adminPane" class="hidden">
+    <h2>Invite a user</h2>
+    <p class="hint">They get an email with a temporary password and must set up an authenticator app on first sign-in.</p>
+    <div class="row">
+      <div><label for="aEmail">Email</label><input id="aEmail" type="email"></div>
+      <div><label for="aName">Full name</label><input id="aName"></div>
+    </div>
+    <label class="check"><input id="aAdmin" type="checkbox">Make them an organisation administrator</label>
+    <div class="actions"><button id="inviteBtn">Invite</button></div>
+    <div id="inviteMsg" class="msg" aria-live="polite"></div>
+    <h2 style="margin-top:24px">Audit trail</h2>
+    <div class="actions"><button id="auditBtn" class="ghost">Load latest</button></div>
+    <div class="scroll"><table><thead><tr><th>Time (UTC)</th><th>Event</th><th>By</th><th>Details</th></tr></thead><tbody id="auditRows"></tbody></table></div>
+  </section>
+
+  <p style="margin-top:8px"><a href="#" id="publicVerifyLink" class="hidden">Verify a signature without signing in</a></p>
 </main>
 <script>
+"use strict";
 const $ = (id) => document.getElementById(id);
-const out = $("out");
 let cfg = { auth_required: true };
+let session = { idToken: null, dev: null, me: null };
+let auth = { step: "login", session: null, username: null };
+let current = null;
 
-function show(lines, cls) {
-  out.replaceChildren();
-  lines.forEach((t, i) => {
-    const d = document.createElement("div");
-    d.textContent = t;
-    if (i === 0 && cls) d.className = cls;
-    out.appendChild(d);
-  });
+// ---------- helpers ----------
+function say(el, text, cls) { el.textContent = text; el.className = "msg " + (cls || ""); }
+function sayLines(el, lines, cls) {
+  el.replaceChildren(); el.className = "msg " + (cls || "");
+  lines.forEach((t) => { const d = document.createElement("div"); d.textContent = t; el.appendChild(d); });
 }
+function cell(tr, text, cls) { const td = document.createElement("td"); td.textContent = text; if (cls) td.className = cls; tr.appendChild(td); return td; }
+function chip(text) { const s = document.createElement("span"); s.className = "chip"; s.textContent = text; return s; }
+function when(t) { return t ? t.replace("T", " ").replace("Z", " UTC") : ""; }
 
 async function sha512Hex(file) {
   const buf = await crypto.subtle.digest("SHA-512", await file.arrayBuffer());
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function api(path, body, token) {
-  const headers = { "Content-Type": "application/json" };
-  if (token) headers.Authorization = "Bearer " + token;
-  const r = await fetch(path, { method: "POST", headers, body: JSON.stringify(body) });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.detail ? JSON.stringify(data.detail) : "HTTP " + r.status);
-  return data;
+function headers() {
+  const h = { "Content-Type": "application/json" };
+  if (session.idToken) h.Authorization = "Bearer " + session.idToken;
+  if (session.dev) {
+    h["X-QSign-Dev-Email"] = session.dev.email; h["X-QSign-Dev-Name"] = session.dev.name;
+    h["X-QSign-Dev-Org"] = session.dev.org; h["X-QSign-Dev-Groups"] = session.dev.admin ? "org-admin" : "";
+  }
+  return h;
 }
 
-async function cognitoLogin(email, password) {
-  const r = await fetch(`https://cognito-idp.${cfg.region}.amazonaws.com/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-amz-json-1.1", "X-Amz-Target": "AWSCognitoIdentityProviderService.InitiateAuth" },
-    body: JSON.stringify({ AuthFlow: "USER_PASSWORD_AUTH", ClientId: cfg.cognito_client_id, AuthParameters: { USERNAME: email, PASSWORD: password } }),
-  });
-  const data = await r.json();
-  if (!r.ok) throw new Error(data.message || "sign-in failed");
-  if (!data.AuthenticationResult) throw new Error("extra sign-in step required (" + data.ChallengeName + "); use the AWS console to finish setting up this account");
-  return data.AuthenticationResult.IdToken;
+async function api(method, path, body) {
+  const r = await fetch(path, { method, headers: headers(), body: body ? JSON.stringify(body) : undefined });
+  const data = await r.json().catch(() => ({}));
+  if (r.status === 401) { signOut("Your session ended. Please sign in again."); throw new Error("signed out"); }
+  if (!r.ok) {
+    const d = data.detail;
+    throw new Error(typeof d === "string" ? d : Array.isArray(d) ? d.map((x) => x.msg).join("; ") : "request failed (" + r.status + ")");
+  }
+  return data;
 }
 
 function download(name, obj) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" }));
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
 }
 
-$("signBtn").onclick = async () => {
-  const file = $("docSign").files[0];
-  if (!file) return show(["Choose a document first."], "bad");
-  if (!$("consent").checked) return show(["Tick the consent box to sign."], "bad");
-  $("signBtn").disabled = true;
+// ---------- Cognito sign-in (with first-login password change and MFA) ----------
+async function cognito(target, payload) {
+  const r = await fetch(`https://cognito-idp.${cfg.region}.amazonaws.com/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-amz-json-1.1", "X-Amz-Target": "AWSCognitoIdentityProviderService." + target },
+    body: JSON.stringify(payload),
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.message || "sign-in failed");
+  return data;
+}
+
+function showStep(step) {
+  auth.step = step;
+  $("loginStep").classList.toggle("hidden", step !== "login");
+  $("newPwStep").classList.toggle("hidden", step !== "newpw");
+  $("mfaSetupStep").classList.toggle("hidden", step !== "mfasetup");
+  $("mfaStep").classList.toggle("hidden", step !== "mfa" && step !== "mfasetup");
+  if (step === "mfa" || step === "mfasetup") { $("mfaCode").value = ""; $("mfaCode").focus(); }
+}
+
+async function handleAuthResult(res) {
+  if (res.AuthenticationResult) { session.idToken = res.AuthenticationResult.IdToken; return enterApp(); }
+  auth.session = res.Session;
+  if (res.ChallengeParameters && res.ChallengeParameters.USER_ID_FOR_SRP) auth.username = res.ChallengeParameters.USER_ID_FOR_SRP;
+  if (res.ChallengeName === "NEW_PASSWORD_REQUIRED") return showStep("newpw");
+  if (res.ChallengeName === "SOFTWARE_TOKEN_MFA") return showStep("mfa");
+  if (res.ChallengeName === "MFA_SETUP") {
+    const assoc = await cognito("AssociateSoftwareToken", { Session: auth.session });
+    auth.session = assoc.Session;
+    $("mfaSecret").textContent = assoc.SecretCode;
+    $("mfaLink").href = `otpauth://totp/QSign:${encodeURIComponent($("email").value)}?secret=${assoc.SecretCode}&issuer=QSign`;
+    return showStep("mfasetup");
+  }
+  throw new Error("unsupported sign-in step: " + res.ChallengeName);
+}
+
+$("loginBtn").onclick = async () => {
+  const msg = $("loginMsg"); $("loginBtn").disabled = true; say(msg, "");
   try {
-    show(["Hashing document in your browser..."]);
-    const body = {
-      document: { name: file.name, size: file.size, sha512: await sha512Hex(file) },
-      consent: true, reason: $("reason").value, location: $("location").value, jurisdiction: $("jur").value,
-    };
-    let token = null;
-    if (cfg.auth_required) token = await cognitoLogin($("email").value, $("password").value);
-    else { body.signer_email = $("email").value; body.signer_name = $("name").value; }
-    show(["Signing with AWS KMS..."]);
-    const res = await api("/api/sign", body, token);
+    if (!cfg.auth_required) {
+      const email = $("email").value.trim().toLowerCase();
+      if (!email) throw new Error("enter an email");
+      session.dev = { email, name: $("devName").value || email, org: $("devOrg").value || "dev-org", admin: $("devAdmin").checked };
+      return await enterApp();
+    }
+    if (auth.step === "login") {
+      auth.username = $("email").value.trim();
+      await handleAuthResult(await cognito("InitiateAuth", { AuthFlow: "USER_PASSWORD_AUTH", ClientId: cfg.cognito_client_id,
+        AuthParameters: { USERNAME: auth.username, PASSWORD: $("password").value } }));
+    } else if (auth.step === "newpw") {
+      await handleAuthResult(await cognito("RespondToAuthChallenge", { ClientId: cfg.cognito_client_id, ChallengeName: "NEW_PASSWORD_REQUIRED",
+        Session: auth.session, ChallengeResponses: { USERNAME: auth.username, NEW_PASSWORD: $("newPw").value } }));
+    } else if (auth.step === "mfasetup") {
+      const v = await cognito("VerifySoftwareToken", { Session: auth.session, UserCode: $("mfaCode").value.trim(), FriendlyDeviceName: "QSign" });
+      if (v.Status !== "SUCCESS") throw new Error("that code did not work; try the next one");
+      await handleAuthResult(await cognito("RespondToAuthChallenge", { ClientId: cfg.cognito_client_id, ChallengeName: "MFA_SETUP",
+        Session: v.Session, ChallengeResponses: { USERNAME: auth.username } }));
+    } else if (auth.step === "mfa") {
+      await handleAuthResult(await cognito("RespondToAuthChallenge", { ClientId: cfg.cognito_client_id, ChallengeName: "SOFTWARE_TOKEN_MFA",
+        Session: auth.session, ChallengeResponses: { USERNAME: auth.username, SOFTWARE_TOKEN_MFA_CODE: $("mfaCode").value.trim() } }));
+    }
+  } catch (e) { say(msg, e.message, "bad"); if (/session/i.test(e.message)) showStep("login"); }
+  finally { $("loginBtn").disabled = false; }
+};
+$("password").addEventListener("keydown", (e) => { if (e.key === "Enter") $("loginBtn").click(); });
+$("mfaCode").addEventListener("keydown", (e) => { if (e.key === "Enter") $("loginBtn").click(); });
+
+function signOut(text) {
+  session = { idToken: null, dev: null, me: null };
+  $("password").value = ""; showStep("login");
+  $("whoami").textContent = ""; $("logoutBtn").classList.add("hidden"); $("tabs").classList.add("hidden");
+  ["inboxPane", "detailPane", "sendPane", "quickPane", "adminPane", "verifyPane"].forEach((p) => $(p).classList.add("hidden"));
+  $("loginPane").classList.remove("hidden"); $("publicVerifyLink").classList.remove("hidden");
+  if (text) say($("loginMsg"), text, "warn");
+}
+$("logoutBtn").onclick = () => signOut();
+
+async function enterApp() {
+  session.me = await api("GET", "/api/me");
+  $("whoami").textContent = `${session.me.name} · ${session.me.org_id}${session.me.is_org_admin ? " · admin" : ""}`;
+  $("logoutBtn").classList.remove("hidden");
+  $("loginPane").classList.add("hidden"); $("publicVerifyLink").classList.add("hidden");
+  $("tabs").classList.remove("hidden");
+  $("adminTab").classList.toggle("hidden", !session.me.is_org_admin);
+  const m = location.hash.match(/envelope=([\w-]+)/);
+  if (m) openEnvelope(m[1]); else tab("inbox");
+}
+
+// ---------- tabs ----------
+const panes = { inbox: "inboxPane", send: "sendPane", quick: "quickPane", verify: "verifyPane", admin: "adminPane" };
+function tab(name) {
+  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
+  Object.values(panes).forEach((p) => $(p).classList.add("hidden"));
+  $("detailPane").classList.add("hidden");
+  $(panes[name]).classList.remove("hidden");
+  if (name === "inbox") loadInbox();
+}
+document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => tab(b.dataset.tab)));
+$("publicVerifyLink").onclick = (e) => { e.preventDefault(); $("verifyPane").classList.toggle("hidden"); };
+
+// ---------- inbox ----------
+async function loadInbox() {
+  const tbody = $("inboxRows"); tbody.replaceChildren(); say($("inboxMsg"), "Loading...");
+  try {
+    const { envelopes } = await api("GET", "/api/envelopes");
+    say($("inboxMsg"), envelopes.length ? "" : "No envelopes yet.");
+    envelopes.forEach((e) => {
+      const tr = document.createElement("tr");
+      const a = document.createElement("a"); a.href = "#envelope=" + e.id; a.textContent = e.title;
+      a.onclick = (ev) => { ev.preventDefault(); openEnvelope(e.id); };
+      cell(tr, "").appendChild(a);
+      cell(tr, e.created_by.name || e.created_by.email);
+      cell(tr, `${e.signed} of ${e.total} signed`);
+      const st = cell(tr, ""); st.appendChild(chip(e.my_turn ? "your turn" : e.status));
+      tbody.appendChild(tr);
+    });
+  } catch (e) { say($("inboxMsg"), e.message, "bad"); }
+}
+$("refreshBtn").onclick = loadInbox;
+$("backBtn").onclick = () => { history.replaceState(null, "", location.pathname); tab("inbox"); };
+
+// ---------- envelope detail ----------
+async function openEnvelope(id) {
+  Object.values(panes).forEach((p) => $(p).classList.add("hidden"));
+  $("detailPane").classList.remove("hidden"); say($("dMsg"), "");
+  try {
+    const env = await api("GET", "/api/envelopes/" + encodeURIComponent(id));
+    current = env;
+    history.replaceState(null, "", "#envelope=" + env.id);
+    $("dTitle").textContent = env.title;
+    $("dMeta").textContent = `${env.document.name || "document"} · sent by ${env.created_by.name} on ${when(env.created_at)} · ${env.status}` +
+      (env.status === "open" ? ` · expires ${when(env.expires_at)}` : "");
+    $("dMessage").textContent = env.message || "";
+    const tbody = $("dSigners"); tbody.replaceChildren();
+    env.signers.forEach((s) => {
+      const tr = document.createElement("tr");
+      cell(tr, String(s.order)); cell(tr, `${s.name} <${s.email}>`);
+      cell(tr, "").appendChild(chip(s.status));
+      cell(tr, when(s.signed_at || s.declined_at));
+      tbody.appendChild(tr);
+    });
+    $("dSignBox").classList.toggle("hidden", !env.my_turn);
+    $("dEvidenceBtn").classList.toggle("hidden", env.status !== "completed");
+    const canCancel = env.status === "open" && (env.created_by.email === session.me.email || session.me.is_org_admin);
+    $("dCancelBtn").classList.toggle("hidden", !canCancel);
+  } catch (e) { say($("dMsg"), e.message, "bad"); }
+}
+
+$("dSignBtn").onclick = async () => {
+  const file = $("dDoc").files[0];
+  if (!file) return say($("dMsg"), "Select the document first.", "bad");
+  if (!$("dConsent").checked) return say($("dMsg"), "Tick the consent box to sign.", "bad");
+  $("dSignBtn").disabled = true;
+  try {
+    say($("dMsg"), "Checking the document and signing...");
+    const res = await api("POST", `/api/envelopes/${current.id}/sign`, {
+      sha512: await sha512Hex(file), consent: true, reason: $("dReason").value, jurisdiction: $("dJur").value });
+    download(`${file.name}.${session.me.email}.qsig.json`, res.bundle);
+    await openEnvelope(current.id);
+    say($("dMsg"), res.envelope.status === "completed" ? "Signed. Everyone has now signed; the evidence pack is ready." : "Signed. The next signer has been notified.", "ok");
+  } catch (e) { say($("dMsg"), e.message, "bad"); }
+  finally { $("dSignBtn").disabled = false; }
+};
+$("dDeclineBtn").onclick = async () => {
+  const reason = prompt("Why are you declining? (shared with the sender)");
+  if (reason === null) return;
+  try { await api("POST", `/api/envelopes/${current.id}/decline`, { reason }); await openEnvelope(current.id); say($("dMsg"), "Declined.", "warn"); }
+  catch (e) { say($("dMsg"), e.message, "bad"); }
+};
+$("dCancelBtn").onclick = async () => {
+  if (!confirm("Cancel this envelope? Nobody will be able to sign it.")) return;
+  try { await api("POST", `/api/envelopes/${current.id}/cancel`); await openEnvelope(current.id); say($("dMsg"), "Cancelled.", "warn"); }
+  catch (e) { say($("dMsg"), e.message, "bad"); }
+};
+$("dEvidenceBtn").onclick = async () => {
+  try { download(`${current.title.replace(/[^\w.-]+/g, "_")}.evidence.json`, await api("GET", `/api/envelopes/${current.id}/evidence`)); }
+  catch (e) { say($("dMsg"), e.message, "bad"); }
+};
+
+// ---------- send ----------
+function addSigner(email = "", name = "") {
+  const row = document.createElement("div"); row.className = "signer-row";
+  const e = document.createElement("input"); e.type = "email"; e.placeholder = "email"; e.value = email; e.className = "sEmail";
+  const n = document.createElement("input"); n.placeholder = "full name"; n.value = name; n.className = "sName";
+  const x = document.createElement("button"); x.className = "ghost"; x.textContent = "Remove"; x.onclick = () => row.remove();
+  row.append(e, n, x); $("sSigners").appendChild(row);
+}
+addSigner();
+$("addSignerBtn").onclick = () => addSigner();
+$("sendBtn").onclick = async () => {
+  const file = $("sDoc").files[0], msg = $("sendMsg");
+  if (!file) return say(msg, "Choose the document.", "bad");
+  const signers = [...document.querySelectorAll(".signer-row")].map((r) => ({ email: r.querySelector(".sEmail").value.trim(), name: r.querySelector(".sName").value.trim() })).filter((s) => s.email);
+  if (!signers.length) return say(msg, "Add at least one signer.", "bad");
+  $("sendBtn").disabled = true;
+  try {
+    const env = await api("POST", "/api/envelopes", {
+      title: $("sTitle").value, document: { name: file.name, size: file.size, sha512: await sha512Hex(file) },
+      signers, sequential: $("sSeq").checked, message: $("sMsg").value, expires_in_days: Number($("sDays").value) || 30 });
+    say(msg, `Sent to ${signers.length} signer(s). Remember to share the document file with them.`, "ok");
+    openEnvelope(env.id);
+  } catch (e) { say(msg, e.message, "bad"); }
+  finally { $("sendBtn").disabled = false; }
+};
+
+// ---------- quick sign ----------
+$("qSignBtn").onclick = async () => {
+  const file = $("qDoc").files[0], msg = $("quickMsg");
+  if (!file) return say(msg, "Choose a document first.", "bad");
+  if (!$("qConsent").checked) return say(msg, "Tick the consent box to sign.", "bad");
+  $("qSignBtn").disabled = true;
+  try {
+    const res = await api("POST", "/api/sign", { document: { name: file.name, size: file.size, sha512: await sha512Hex(file) },
+      consent: true, reason: $("qReason").value, location: $("qLoc").value, jurisdiction: $("qJur").value });
     download(file.name + ".qsig.json", res.bundle);
     const m = res.bundle.manifest;
-    show(["Signed.", `Signer: ${m.signer.name} <${m.signer.email}>`, `Time (UTC): ${m.signed_at}`,
-          `Algorithms: ${res.bundle.signatures.map((s) => s.alg).join(" + ")}`, `Audit record: ${res.audit_id}`,
-          "Keep the downloaded .qsig.json file with the document."], "ok");
-  } catch (e) { show(["Signing failed: " + e.message], "bad"); }
-  finally { $("signBtn").disabled = false; }
+    sayLines(msg, ["Signed.", `Signer: ${m.signer.name} <${m.signer.email}>`, `Time: ${when(m.signed_at)}`,
+      `Algorithms: ${res.bundle.signatures.map((s) => s.alg).join(" + ")}`, "Keep the downloaded .qsig.json file with the document."], "ok");
+  } catch (e) { say(msg, e.message, "bad"); }
+  finally { $("qSignBtn").disabled = false; }
 };
 
+// ---------- verify ----------
 $("verifyBtn").onclick = async () => {
-  const file = $("docVerify").files[0], bf = $("bundleFile").files[0];
-  if (!file || !bf) return show(["Choose both the document and its .qsig.json file."], "bad");
+  const file = $("vDoc").files[0], sig = $("vFile").files[0], msg = $("verifyMsg");
+  if (!file || !sig) return say(msg, "Choose both the document and the signature file.", "bad");
   try {
-    const bundle = JSON.parse(await bf.text());
-    const r = await api("/api/verify", { bundle, sha512: await sha512Hex(file) });
-    const m = r.manifest || {}, s = m.signer || {};
-    const lines = [r.valid ? "VALID signature" : "NOT VALID"];
-    r.signatures.forEach((x) => lines.push(`${x.alg}: ${x.valid ? "ok" : "failed"}`));
-    lines.push(`Document unchanged: ${r.document_match ? "yes" : "NO"}`);
+    const data = JSON.parse(await sig.text());
+    const body = data.format === "qsign-evidence/1" ? { evidence: data } : { bundle: data };
+    body.sha512 = await sha512Hex(file);
+    const r = await fetch("/api/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((x) => x.json());
+    const lines = [r.valid ? "VALID" : "NOT VALID"];
+    if (r.kind === "evidence") {
+      lines.push(`Envelope: ${r.title}`, `Completed: ${when(r.completed_at)}`);
+      (r.signers || []).forEach((s) => lines.push(`${s.order}. ${s.name} <${s.email}> signed ${when(s.signed_at)}: ${s.valid ? "ok" : "FAILED"}`));
+    } else {
+      (r.signatures || []).forEach((s) => lines.push(`${s.alg}: ${s.valid ? "ok" : "FAILED"}`));
+      lines.push(`Document unchanged: ${r.document_match ? "yes" : "NO"}`);
+      const m = r.manifest || {}, s = m.signer || {};
+      if (r.valid) lines.push(`Signed by ${s.name} <${s.email}> on ${when(m.signed_at)} (identity: ${s.verified_by})`);
+    }
     lines.push(`Signed with this service's keys: ${r.trusted_keys ? "yes" : "no"}`);
-    if (r.valid) lines.push(`Signed by ${s.name} <${s.email}> at ${m.signed_at} (identity: ${s.verified_by})`);
-    r.errors.forEach((e) => lines.push("Problem: " + e));
-    show(lines, r.valid && r.trusted_keys ? "ok" : "bad");
-  } catch (e) { show(["Verification failed: " + e.message], "bad"); }
+    (r.errors || []).forEach((e) => lines.push("Problem: " + e));
+    sayLines(msg, lines, r.valid && r.trusted_keys ? "ok" : "bad");
+  } catch (e) { say(msg, "Could not verify: " + e.message, "bad"); }
 };
 
-function tab(sign) {
-  $("signPane").classList.toggle("hidden", !sign);
-  $("verifyPane").classList.toggle("hidden", sign);
-  $("tabSign").classList.toggle("ghost", !sign);
-  $("tabVerify").classList.toggle("ghost", sign);
-  out.replaceChildren();
-}
-$("tabSign").onclick = () => tab(true);
-$("tabVerify").onclick = () => tab(false);
+// ---------- admin ----------
+$("inviteBtn").onclick = async () => {
+  const msg = $("inviteMsg");
+  try {
+    const r = await api("POST", "/api/admin/users", { email: $("aEmail").value, name: $("aName").value, admin: $("aAdmin").checked });
+    say(msg, `Invited ${r.email}.`, "ok"); $("aEmail").value = ""; $("aName").value = "";
+  } catch (e) { say(msg, e.message, "bad"); }
+};
+$("auditBtn").onclick = async () => {
+  const tbody = $("auditRows"); tbody.replaceChildren();
+  try {
+    const { records } = await api("GET", "/api/admin/audit?limit=200");
+    records.forEach((r) => {
+      const tr = document.createElement("tr");
+      cell(tr, when(r.at)); cell(tr, r.event); cell(tr, r.actor_email);
+      const details = r.document_name || r.invited_email || r.envelope_id || "";
+      cell(tr, details);
+      tbody.appendChild(tr);
+    });
+  } catch (e) { say($("inviteMsg"), e.message, "bad"); }
+};
 
+// ---------- start ----------
 fetch("/api/config").then((r) => r.json()).then((c) => {
   cfg = c;
   if (!c.auth_required) {
-    $("pwWrap").classList.add("hidden");
-    $("nameWrap").classList.remove("hidden");
-    $("authNote").textContent = "Development mode: identity is self-declared and not verified.";
-  } else {
-    $("authNote").textContent = "Sign in with your QSign account. Your identity is checked by Amazon Cognito.";
+    $("pwWrap").classList.add("hidden"); $("devWrap").classList.remove("hidden");
+    $("loginHint").textContent = "Development mode: identity is self-declared and not verified. Never use this in production.";
   }
+  signOut();
 });
 </script>
 </body>

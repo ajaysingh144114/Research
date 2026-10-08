@@ -57,6 +57,7 @@ def build_manifest(
     jurisdiction: str = "OTHER",
     intent: str = DEFAULT_INTENT,
     signed_at: datetime | None = None,
+    envelope: dict | None = None,
 ) -> dict:
     if jurisdiction not in JURISDICTIONS:
         raise ValueError(f"jurisdiction must be one of {sorted(JURISDICTIONS)}")
@@ -69,7 +70,7 @@ def build_manifest(
     if document.get("sha3_512"):
         doc["sha3_512"] = str(document["sha3_512"]).lower()
     when = (signed_at or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    return {
+    manifest = {
         "format": BUNDLE_FORMAT,
         "document": doc,
         "signer": {k: str(v) for k, v in signer.items()},
@@ -79,6 +80,9 @@ def build_manifest(
         "jurisdiction": jurisdiction,
         "signed_at": when.strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
+    if envelope:
+        manifest["envelope"] = envelope
+    return manifest
 
 
 def sign_manifest(manifest: dict, signers: Iterable[Signer]) -> dict:

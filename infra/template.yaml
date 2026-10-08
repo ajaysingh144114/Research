@@ -14,6 +14,26 @@ Parameters:
     Type: String
     Default: "*"
     Description: Browser origin allowed to call the API (set to your own domain in production).
+  SesSenderEmail:
+    Type: String
+    Default: ""
+    Description: Verified Amazon SES sender (e.g. sign@yourcompany.com) for "please sign" emails. Empty = no emails.
+  AlarmEmail:
+    Type: String
+    Default: ""
+    Description: Email that receives operational alarms. Empty = alarms without email.
+  AppUrl:
+    Type: String
+    Default: ""
+    Description: Public URL of QSign (custom domain) used in email links. Empty = the API Gateway URL.
+  LogRetentionDays:
+    Type: Number
+    Default: 365
+    AllowedValues: [30, 90, 180, 365, 731, 1827, 3653]
+
+Conditions:
+  HasSesSender: !Not [!Equals [!Ref SesSenderEmail, ""]]
+  HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
 
 Globals:
   Function:
@@ -75,8 +95,20 @@ Resources:
       UserPoolName: !Sub "qsign-${AWS::StackName}"
       UsernameAttributes: [email]
       AutoVerifiedAttributes: [email]
+      MfaConfiguration: "ON"
+      EnabledMfas: [SOFTWARE_TOKEN_MFA]
+      AccountRecoverySetting:
+        RecoveryMechanisms: [{ Name: verified_email, Priority: 1 }]
+      DeletionProtection: ACTIVE
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: true
+        UnusedAccountValidityDays: 7
+        InviteMessageTemplate:
+          EmailSubject: Your QSign e-signature account
+          EmailMessage: >-
+            You have been invited to QSign to review and sign documents.
+            Your username is {username} and your temporary password is {####}.
+            You will choose a new password and set up an authenticator app when you first sign in.
       Policies:
         PasswordPolicy:
           MinimumLength: 12
@@ -91,6 +123,17 @@ Resources:
         - Name: name
           Required: false
           Mutable: true
+        - Name: org_id
+          AttributeDataType: String
+          Mutable: true
+          StringAttributeConstraints: { MinLength: "1", MaxLength: "64" }
+
+  OrgAdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: org-admin
+      Description: Organisation administrators (invite users, read the audit trail)
 
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
@@ -100,6 +143,8 @@ Resources:
       GenerateSecret: false
       ExplicitAuthFlows: [ALLOW_USER_PASSWORD_AUTH, ALLOW_REFRESH_TOKEN_AUTH]
       PreventUserExistenceErrors: ENABLED
+      ReadAttributes: [email, email_verified, name, "custom:org_id"]
+      WriteAttributes: [name]
       IdTokenValidity: 15
       TokenValidityUnits: { IdToken: minutes }
 
@@ -112,8 +157,32 @@ Resources:
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - { AttributeName: id, AttributeType: S }
+        - { AttributeName: org_id, AttributeType: S }
+        - { AttributeName: at, AttributeType: S }
       KeySchema:
         - { AttributeName: id, KeyType: HASH }
+      GlobalSecondaryIndexes:
+        - IndexName: by_org
+          KeySchema:
+            - { AttributeName: org_id, KeyType: HASH }
+            - { AttributeName: at, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+      PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: true }
+      SSESpecification: { SSEEnabled: true }
+      DeletionProtectionEnabled: true
+
+  EnvelopeTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: sk, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+        - { AttributeName: sk, KeyType: RANGE }
       PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: true }
       SSESpecification: { SSEEnabled: true }
       DeletionProtectionEnabled: true
@@ -176,6 +245,20 @@ Resources:
       DefaultRouteSettings:
         ThrottlingBurstLimit: 50
         ThrottlingRateLimit: 20
+      AccessLogSettings:
+        DestinationArn: !GetAtt ApiAccessLogs.Arn
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","time":"$context.requestTime","method":"$context.httpMethod","route":"$context.routeKey","status":"$context.status","latencyMs":"$context.responseLatency","user":"$context.authorizer.claims.email","error":"$context.integrationErrorMessage"}'
+
+  ApiAccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogRetentionDays
+
+  ApiFunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ApiFunction}"
+      RetentionInDays: !Ref LogRetentionDays
 
   ApiFunction:
     Type: AWS::Serverless::Function
@@ -190,40 +273,120 @@ Resources:
           QSIGN_AUDIT_TABLE: !Ref AuditTable
           QSIGN_ARCHIVE_BUCKET: !Ref ArchiveBucket
           QSIGN_COGNITO_CLIENT_ID: !Ref UserPoolClient
+          QSIGN_USER_POOL_ID: !Ref UserPool
+          QSIGN_ENVELOPE_TABLE: !Ref EnvelopeTable
+          QSIGN_AUTO_INVITE_SIGNERS: "1"
+          QSIGN_SES_SENDER: !Ref SesSenderEmail
+          QSIGN_APP_URL: !Ref AppUrl
+          QSIGN_RETIRED_KEY_FINGERPRINTS: ""
       Policies:
         - Statement:
             - Effect: Allow
               Action: [kms:Sign, kms:GetPublicKey]
               Resource: [!GetAtt MlDsaKey.Arn, !GetAtt EcdsaKey.Arn]
             - Effect: Allow
-              Action: [dynamodb:PutItem]
-              Resource: !GetAtt AuditTable.Arn
+              Action: [dynamodb:PutItem, dynamodb:Query]
+              Resource: [!GetAtt AuditTable.Arn, !Sub "${AuditTable.Arn}/index/by_org"]
+            - Effect: Allow
+              Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:Query, dynamodb:BatchGetItem, dynamodb:ConditionCheckItem]
+              Resource: !GetAtt EnvelopeTable.Arn
             - Effect: Allow
               Action: [s3:PutObject]
-              Resource: !Sub "${ArchiveBucket.Arn}/bundles/*"
+              Resource: !Sub "${ArchiveBucket.Arn}/archive/*"
+            - Effect: Allow
+              Action: [cognito-idp:AdminCreateUser, cognito-idp:AdminGetUser, cognito-idp:AdminAddUserToGroup]
+              Resource: !GetAtt UserPool.Arn
+            - !If
+              - HasSesSender
+              - Effect: Allow
+                Action: [ses:SendEmail]
+                Resource: "*"
+                Condition: { StringEquals: { "ses:FromAddress": !Ref SesSenderEmail } }
+              - !Ref AWS::NoValue
       Events:
-        Sign:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /api/sign
-            Method: POST
-            Auth: { Authorizer: CognitoJwt }
-        Verify:
-          Type: HttpApi
-          Properties: { ApiId: !Ref HttpApi, Path: /api/verify, Method: POST }
-        Keys:
-          Type: HttpApi
-          Properties: { ApiId: !Ref HttpApi, Path: /api/keys, Method: GET }
-        Config:
-          Type: HttpApi
-          Properties: { ApiId: !Ref HttpApi, Path: /api/config, Method: GET }
-        Health:
-          Type: HttpApi
-          Properties: { ApiId: !Ref HttpApi, Path: /health, Method: GET }
+        # Public routes: the web app, health, published keys and verification.
         Index:
           Type: HttpApi
           Properties: { ApiId: !Ref HttpApi, Path: /, Method: GET }
+        Health:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /health, Method: GET }
+        Config:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /api/config, Method: GET }
+        Keys:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /api/keys, Method: GET }
+        Verify:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /api/verify, Method: POST }
+        # Everything else under /api needs a signed-in user (secure by default).
+        Private:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/{proxy+}
+            Method: ANY
+            Auth: { Authorizer: CognitoJwt }
+
+  # ---------- Monitoring ----------
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      KmsMasterKeyId: alias/aws/sns
+
+  AlarmSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlarmEmail
+    Properties:
+      TopicArn: !Ref AlarmTopic
+      Protocol: email
+      Endpoint: !Ref AlarmEmail
+
+  FunctionErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: QSign Lambda errors (signing may be failing)
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions: [{ Name: FunctionName, Value: !Ref ApiFunction }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+
+  FunctionThrottlesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: QSign Lambda is being throttled
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions: [{ Name: FunctionName, Value: !Ref ApiFunction }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+
+  Api5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: QSign API is returning server errors
+      Namespace: AWS/ApiGateway
+      MetricName: 5xx
+      Dimensions: [{ Name: ApiId, Value: !Ref HttpApi }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
 
 Outputs:
   AppUrl:
@@ -238,5 +401,9 @@ Outputs:
     Value: !GetAtt EcdsaKey.Arn
   AuditTableName:
     Value: !Ref AuditTable
+  EnvelopeTableName:
+    Value: !Ref EnvelopeTable
+  AlarmTopicArn:
+    Value: !Ref AlarmTopic
   ArchiveBucketName:
     Value: !Ref ArchiveBucket

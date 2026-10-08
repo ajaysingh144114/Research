@@ -1,0 +1,5 @@
+tests/
+keys/
+audit/
+**/__pycache__
+.venv/
