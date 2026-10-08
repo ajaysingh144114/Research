@@ -1,4 +1,9 @@
 QSign
-Copyright 2026 Justivia Legal Ventures LLP
+Copyright 2026 Justivia Legal Ventures LLP. All rights reserved.
 
-This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+QSign is commercial software licensed under the QSign Commercial Licence (see
+LICENSE). It includes a free 30-day trial; continued use needs a paid
+subscription.
+
+The QSign Verifier in the verifier/ folder is licensed under the Apache
+License, Version 2.0 (see verifier/LICENSE).

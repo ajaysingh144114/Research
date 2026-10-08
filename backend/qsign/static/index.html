@@ -52,6 +52,7 @@
   <button id="logoutBtn" class="ghost hidden">Sign out</button>
 </div></header>
 <main>
+  <div id="planBanner" class="msg hidden" role="status"></div>
   <!-- Sign-in -->
   <section id="loginPane" class="hidden">
     <h2>Sign in</h2>
@@ -87,8 +88,8 @@
 
   <nav id="tabs" class="hidden">
     <button data-tab="inbox" class="on">Envelopes</button>
-    <button data-tab="send">Send for signature</button>
-    <button data-tab="quick">Sign myself</button>
+    <button data-tab="send" id="sendTab">Send for signature</button>
+    <button data-tab="quick" id="quickTab">Sign myself</button>
     <button data-tab="verify">Verify</button>
     <button data-tab="admin" class="hidden" id="adminTab">Admin</button>
   </nav>
@@ -306,7 +307,7 @@ $("mfaCode").addEventListener("keydown", (e) => { if (e.key === "Enter") $("logi
 function signOut(text) {
   session = { idToken: null, dev: null, me: null };
   $("password").value = ""; showStep("login");
-  $("whoami").textContent = ""; $("logoutBtn").classList.add("hidden"); $("tabs").classList.add("hidden");
+  $("whoami").textContent = ""; $("planBanner").classList.add("hidden"); $("logoutBtn").classList.add("hidden"); $("tabs").classList.add("hidden");
   ["inboxPane", "detailPane", "sendPane", "quickPane", "adminPane", "verifyPane"].forEach((p) => $(p).classList.add("hidden"));
   $("loginPane").classList.remove("hidden"); $("publicVerifyLink").classList.remove("hidden");
   if (text) say($("loginMsg"), text, "warn");
@@ -320,8 +321,26 @@ async function enterApp() {
   $("loginPane").classList.add("hidden"); $("publicVerifyLink").classList.add("hidden");
   $("tabs").classList.remove("hidden");
   $("adminTab").classList.toggle("hidden", !session.me.is_org_admin);
+  const guest = session.me.org_id === "guest";
+  $("sendTab").classList.toggle("hidden", guest); $("quickTab").classList.toggle("hidden", guest);
+  showPlan();
   const m = location.hash.match(/envelope=([\w-]+)/);
   if (m) openEnvelope(m[1]); else tab("inbox");
+}
+
+async function showPlan() {
+  const b = $("planBanner");
+  try {
+    const p = await api("GET", "/api/plan");
+    if (p.plan === "guest") { b.classList.add("hidden"); return; }
+    if (!p.active) {
+      say(b, "Your organisation's QSign " + (p.plan === "trial" ? "free trial" : "plan") +
+        " has ended. You can still view and verify everything, but new signing needs a subscription. Ask your administrator.", "bad");
+    } else if (p.plan === "trial") {
+      say(b, `Free trial: ${p.days_left} day${p.days_left === 1 ? "" : "s"} left. Ask your administrator to subscribe to keep signing.`, "warn");
+    } else { b.classList.add("hidden"); return; }
+    b.classList.remove("hidden");
+  } catch (e) { b.classList.add("hidden"); }
 }
 
 // ---------- tabs ----------

@@ -10,8 +10,11 @@ Both keys live in **AWS KMS** hardware security modules (FIPS 140-3 Level 3)
 and can never be exported. A signature counts only if both parts verify, so it
 stays safe even after quantum computers can break today's cryptography.
 
-Licensed under [Apache 2.0](LICENSE). For the legal position in the USA, India
-and the EU, read [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
+QSign is commercial software from Justivia Legal Ventures LLP: every organisation
+gets a **30-day free trial**, then a paid subscription (see [Plans](#plans) and
+[LICENSE](LICENSE)). The [QSign Verifier](verifier/) is free and open source
+(Apache 2.0), so anyone can always check a QSign signature. For the legal position
+in the USA, India and the EU, read [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
 
 ## Features
 
@@ -23,7 +26,7 @@ and the EU, read [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
 | **Strong sign-in** | Amazon Cognito accounts, authenticator-app MFA required for everyone, invite-only |
 | **Privacy** | Documents are hashed in the browser and never uploaded |
 | **Tamper-evident records** | Every event goes to DynamoDB, and every signature and evidence pack to S3 Object Lock (write-once, 10 years by default) |
-| **Open verification** | Anyone can verify, on the web page or offline with OpenSSL or the `qsign` CLI, without an account |
+| **Open verification** | Anyone can verify, on the web page or offline with the free [QSign Verifier](verifier/) or OpenSSL, without an account or subscription |
 | **Operations** | Access logs, CloudWatch alarms to email, key rotation without breaking old signatures, Lambda or container deployment |
 
 ## How it works
@@ -55,9 +58,11 @@ New to QSign? Start with the illustrated guide **[QSign: how it works (PDF)](doc
 | `backend/qsign/signers.py` | AWS KMS signer, plus a local signer for development |
 | `backend/qsign/identity.py`, `jwt_verify.py` | Who is calling: Cognito claims, organisation and admin role |
 | `backend/qsign/store.py`, `audit.py`, `services.py` | DynamoDB, audit trail and S3 archive, SES email, Cognito invites |
+| `backend/qsign/plans.py` | Free trial and paid plans per organisation |
 | `backend/qsign/api.py` | HTTP API (FastAPI); interactive reference at `/docs` |
 | `backend/qsign/static/index.html` | Web app: inbox, send, sign, verify, admin |
-| `backend/qsign/cli.py` | `qsign keygen / sign / verify` for offline use |
+| `backend/qsign/cli.py` | `qsign keygen / sign / verify` for offline use, `qsign plan` for operators |
+| `verifier/` | Free, open-source (Apache 2.0) one-file verifier for anyone |
 | `backend/Dockerfile` | Container image for ECS, EKS or on-premises |
 | `infra/template.yaml` | AWS SAM stack |
 | `scripts/create-org-admin.sh` | Creates the first administrator of a new organisation |
@@ -81,6 +86,23 @@ Development mode trusts whatever identity you type and labels every signature
 KMS keys.
 
 Run the tests with `pytest` in `backend/`.
+
+## Plans
+
+| Plan | What the organisation gets |
+|---|---|
+| **Trial** | Everything, free for 30 days from the first time a member signs in |
+| **Business** / **Enterprise** | Everything, for the paid term; Enterprise adds the terms agreed in the contract |
+
+When a trial or plan ends, the organisation can no longer sign documents or
+send new envelopes. Everything else keeps working: envelopes already sent can be
+completed, and every signature and evidence pack can still be viewed,
+downloaded and verified. Guest signers never need a plan; they sign envelopes
+that a paying organisation sent them.
+
+The operator turns a trial into a paid plan with
+`qsign plan set acme --plan business --until 2027-12-31` (see
+[docs/OPERATIONS.md](docs/OPERATIONS.md#subscriptions)).
 
 ## Deploy to AWS
 
@@ -118,8 +140,9 @@ sha512sum contract.pdf   # compare with manifest.document.sha512
 ```
 
 Compare each `key_fingerprint` with the fingerprints the organisation publishes
-at `/api/keys`, so you know whose keys they are. Or simply run
-`qsign verify contract.pdf contract.pdf.qsig.json --trust <fingerprint>`.
+at `/api/keys`, so you know whose keys they are. Or simply run the free verifier:
+`python verifier/qsign_verify.py contract.pdf contract.pdf.qsig.json --trust <fingerprint>`
+(it also checks evidence packs).
 
 ## Security
 

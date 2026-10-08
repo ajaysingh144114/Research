@@ -21,8 +21,9 @@ characters (`sha512`).
 | Method and path | Purpose |
 |---|---|
 | `GET /api/me` | Email, name, organisation, admin flag |
-| `POST /api/sign` | Sign a document yourself. Body: `document {name, size, sha512}`, `consent: true`, optional `reason`, `location`, `jurisdiction` (`US`, `IN`, `EU`, `OTHER`). Returns `bundle` |
-| `POST /api/envelopes` | Create an envelope. Body: `title`, `document`, `signers [{email, name}]`, `sequential` (default true), `message`, `expires_in_days` (1-365). Guests cannot send |
+| `GET /api/plan` | Your organisation's plan: `plan` (`trial`, `business`, `enterprise`, or `guest`), `active`, `expires_at`, `days_left` |
+| `POST /api/sign` | Sign a document yourself (needs an active plan; not for guests). Body: `document {name, size, sha512}`, `consent: true`, optional `reason`, `location`, `jurisdiction` (`US`, `IN`, `EU`, `OTHER`). Returns `bundle` |
+| `POST /api/envelopes` | Create an envelope. Body: `title`, `document`, `signers [{email, name}]`, `sequential` (default true), `message`, `expires_in_days` (1-365). Needs an active plan. Guests cannot send |
 | `GET /api/envelopes` | Envelopes you sent or must sign, newest first, with `my_turn` |
 | `GET /api/envelopes/{id}` | One envelope |
 | `POST /api/envelopes/{id}/sign` | Sign when it is your turn. Body: `sha512` (must match), `consent: true`, optional `reason`, `location`, `jurisdiction` |
@@ -39,7 +40,7 @@ characters (`sha512`).
 
 ## Errors
 
-`400` invalid input · `401` not signed in · `403` not allowed · `404` not found
+`400` invalid input · `401` not signed in · `402` your organisation's trial or plan has ended, or a guest tried to sign their own document · `403` not allowed · `404` not found
 (also returned when you may not see an envelope) · `409` wrong state, not your
 turn, or a concurrent change (reload and retry).
 

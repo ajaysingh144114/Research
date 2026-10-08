@@ -49,8 +49,25 @@ they choose a password and set up an authenticator app. From then on they invite
 their own colleagues from the **Admin** tab.
 
 People outside any organisation who are asked to sign an envelope get a
-**guest** account automatically. Guests can sign what was sent to them and use
-"Sign myself", but cannot send envelopes.
+**guest** account automatically. Guests can sign what was sent to them, but
+cannot send envelopes or sign their own documents.
+
+### Subscriptions
+
+A new organisation's 30-day free trial starts the first time one of its members
+signs in. The web app shows the days left. When a customer pays, record the paid
+term from a computer with AWS credentials for the deployment:
+
+```bash
+export QSIGN_ENVELOPE_TABLE=<EnvelopeTable output>  QSIGN_AUDIT_TABLE=<AuditTable output>
+qsign plan show acme
+qsign plan set acme --plan business --until 2027-12-31
+```
+
+Each change is written to the audit trail as `plan.changed`. When a term ends,
+the organisation stops being able to sign or send; extend it with the same
+command. To give a longer trial, use `--plan trial` with a later date, or set
+`QSIGN_TRIAL_DAYS` for every new organisation.
 
 ## 4. Email
 
@@ -128,4 +145,5 @@ Give the task role the same permissions as the Lambda function in
 | `QSIGN_ALLOW_UNAUTHENTICATED` | `1` = development mode with self-declared identity. Refused together with `kms` |
 | `QSIGN_RETIRED_KEY_FINGERPRINTS` | Old key fingerprints that remain trusted after rotation |
 | `QSIGN_AUTO_INVITE_SIGNERS` | `1` = create guest accounts for envelope signers who have none |
+| `QSIGN_TRIAL_DAYS` | Length of the free trial for new organisations (default 30) |
 | Others | See section 9 |

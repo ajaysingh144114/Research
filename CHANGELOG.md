@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0
+
+- QSign is now commercial software under the QSign Commercial Licence, with a 30-day free trial per organisation and paid Business and Enterprise plans. Versions up to 0.2.0 stay available under Apache 2.0.
+- New free, open-source (Apache 2.0) QSign Verifier in `verifier/`: one file that checks signatures and evidence packs offline. Tests keep it in step with the platform.
+- Plans are enforced on signing and sending; viewing, verifying and finishing envelopes already sent always work.
+- Guest accounts sign envelopes sent to them but no longer sign their own documents.
+- `GET /api/plan`, trial banner in the web app, and `qsign plan show / set` for operators.
+
 ## 0.2.0
 
 - Multi-signer envelopes: ordered or parallel signing, expiry, decline, cancel.

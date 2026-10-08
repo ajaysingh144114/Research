@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from qsign import api
 from qsign.audit import FileAuditLog
+from qsign.plans import MemoryPlanStore
 from qsign.services import Directory, Notifier
 from qsign.signers import generate_local_keys, load_local_signers
 from qsign.store import MemoryEnvelopeStore
@@ -29,6 +30,7 @@ def services(tmp_path, monkeypatch):
         "store": MemoryEnvelopeStore(),
         "notifier": Notifier(),
         "directory": Directory(),
+        "plans": MemoryPlanStore(),
     }
     return s
 
@@ -42,6 +44,7 @@ def client(services):
         api.get_store: lambda: services["store"],
         api.get_notifier: lambda: services["notifier"],
         api.get_directory: lambda: services["directory"],
+        api.get_plans: lambda: services["plans"],
     })
     return TestClient(app)
 

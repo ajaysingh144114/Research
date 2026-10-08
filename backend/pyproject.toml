@@ -1,6 +1,7 @@
 [project]
 name = "qsign"
-version = "0.2.0"
+version = "0.3.0"
+license = "LicenseRef-QSign-Commercial"
 description = "Quantum-safe hybrid (ML-DSA + ECDSA) electronic signatures on AWS"
 requires-python = ">=3.11"
 dependencies = ["cryptography>=48.0.0", "fastapi>=0.115", "mangum>=0.19", "boto3>=1.40"]
@@ -9,7 +10,7 @@ dependencies = ["cryptography>=48.0.0", "fastapi>=0.115", "mangum>=0.19", "boto3
 qsign = "qsign.cli:main"
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]

@@ -3,6 +3,11 @@
     qsign keygen --dir keys
     qsign sign contract.pdf --name "A. Singh" --email a@example.com --jurisdiction IN
     qsign verify contract.pdf contract.pdf.qsig.json
+
+Operators (whoever runs the AWS deployment) manage subscriptions with:
+
+    qsign plan show acme
+    qsign plan set acme --plan business --until 2027-12-31
 """
 
 from __future__ import annotations
@@ -11,6 +16,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .bundle import JURISDICTIONS, build_manifest, hash_document, sign_manifest, verify_bundle
@@ -70,6 +76,29 @@ def _verify(args) -> int:
     return 0 if ok else 1
 
 
+def _plan_show(args) -> int:
+    from .plans import plan_store_from_env, status
+
+    sub = plan_store_from_env().get(args.org)
+    if not sub:
+        print(f"{args.org}: no plan yet (a trial starts when a member first signs in)")
+        return 1
+    print(json.dumps(status(sub), indent=2))
+    return 0
+
+
+def _plan_set(args) -> int:
+    from .audit import audit_from_env
+    from .plans import plan_store_from_env, set_plan, status
+
+    until = datetime.strptime(args.until, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+    sub = set_plan(plan_store_from_env(), args.org, args.plan, until)
+    audit_from_env().event("plan.changed", org_id=args.org, actor="operator", plan=args.plan,
+                           expires_at=sub["expires_at"])
+    print(json.dumps(status(sub), indent=2))
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="qsign", description="Quantum-safe hybrid e-signatures")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -96,6 +125,17 @@ def main(argv=None) -> int:
     v.add_argument("--trust", action="append", metavar="FINGERPRINT", help="trusted key fingerprint (repeatable)")
     v.add_argument("--json", action="store_true")
     v.set_defaults(func=_verify)
+
+    pl = sub.add_parser("plan", help="show or change an organisation's subscription (operators)")
+    plsub = pl.add_subparsers(dest="plan_cmd", required=True)
+    ps = plsub.add_parser("show")
+    ps.add_argument("org")
+    ps.set_defaults(func=_plan_show)
+    pt = plsub.add_parser("set")
+    pt.add_argument("org")
+    pt.add_argument("--plan", required=True, choices=["trial", "business", "enterprise"])
+    pt.add_argument("--until", required=True, metavar="YYYY-MM-DD", help="last day of the paid period")
+    pt.set_defaults(func=_plan_set)
 
     args = p.parse_args(argv)
     return args.func(args)

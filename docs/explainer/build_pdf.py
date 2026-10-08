@@ -276,7 +276,7 @@ def on_page(canvas, doc):
     canvas.saveState()
     canvas.setFont("Sans", 7.5)
     canvas.setFillColor(MUTED)
-    canvas.drawString(MARGIN, 10 * mm, "QSign: how it works  ·  v0.2  ·  October 2026")
+    canvas.drawString(MARGIN, 10 * mm, "QSign: how it works  ·  v0.3  ·  October 2026")
     canvas.drawRightString(PAGE_W - MARGIN, 10 * mm, f"Page {doc.page}")
     canvas.setStrokeColor(LINE)
     canvas.line(MARGIN, 13 * mm, PAGE_W - MARGIN, 13 * mm)
@@ -296,7 +296,7 @@ def on_cover(canvas, doc):
     canvas.drawString(MARGIN, PAGE_H - 70 * mm, "A plain-language guide for owners, customers and security teams")
     canvas.setFillColor(MUTED)
     canvas.setFont("Sans", 8.5)
-    canvas.drawString(MARGIN, 18 * mm, "Version 0.2  ·  October 2026  ·  Justivia Legal Ventures LLP  ·  Apache License 2.0")
+    canvas.drawString(MARGIN, 18 * mm, "Version 0.3  ·  October 2026  ·  Justivia Legal Ventures LLP  ·  Commercial software, free verifier")
     canvas.drawString(MARGIN, 13 * mm, "This guide explains technology. It is not legal advice.")
     canvas.restoreState()
 
@@ -317,7 +317,7 @@ def build():
         ["6  Verifying", "How anyone can check a signature, and what a failure means"],
         ["7  Security", "Who can do what, and how common attacks are stopped"],
         ["8  The law", "Where QSign stands in the USA, India and the EU"],
-        ["9  Running it", "Deploying, onboarding a customer, and what comes next"],
+        ["9  Running it", "Deploying, onboarding a customer, plans and what comes next"],
     ], [38 * mm, CONTENT_W - 38 * mm], pad=3))
     s.append(Spacer(1, 10))
     s.append(callout("In one sentence",
@@ -440,7 +440,7 @@ def build():
     s.append(table([
         ["Where", "How"],
         ["QSign web page", "Open the <b>Verify</b> tab, choose the document and the .qsig.json or evidence file. The fingerprint is computed in the browser."],
-        ["QSign command line", "<font name='Mono' size='8'>qsign verify contract.pdf contract.pdf.qsig.json --trust &lt;key fingerprint&gt;</font>"],
+        ["Free QSign Verifier", "One open-source file anyone may use, no account or subscription: <font name='Mono' size='8'>python qsign_verify.py contract.pdf contract.pdf.qsig.json --trust &lt;key fingerprint&gt;</font>"],
         ["Independent tools", "OpenSSL 3.5 or newer, or any library that supports ML-DSA. The repository README lists the exact commands."],
     ], [38 * mm, CONTENT_W - 38 * mm], pad=3))
     s.append(P("What a failure means", h2))
@@ -480,8 +480,8 @@ def build():
     s.append(table([
         ["Role", "Can", "Cannot"],
         ["Anyone (no account)", "Verify signatures and evidence packs; see the published key fingerprints.", "Sign, see envelopes."],
-        ["Guest (external signer)", "Sign envelopes sent to them; sign their own documents.", "Send envelopes; see other people's envelopes."],
-        ["Member of an organisation", "Everything a guest can, plus send envelopes.", "See envelopes they are not part of; invite users."],
+        ["Guest (external signer)", "Sign envelopes sent to them; view and verify them.", "Send envelopes; sign their own documents; see other people's envelopes."],
+        ["Member of an organisation", "Everything a guest can, plus sign their own documents and send envelopes while the plan is active.", "See envelopes they are not part of; invite users."],
         ["Organisation admin", "Invite colleagues (and other admins); see all their organisation's envelopes and audit trail; cancel envelopes.", "See other organisations' data. Change who signed what."],
         ["AWS account owner", "Deploy, rotate keys, read logs.", "Export the private keys. Delete or edit locked signatures before retention ends."],
     ], [38 * mm, 78 * mm, CONTENT_W - 116 * mm], pad=3))
@@ -534,6 +534,12 @@ def build():
         ["5  Invite and send", "The admin invites colleagues from the Admin tab; anyone can send an envelope."],
         ["6  Publish keys", "Share the fingerprints from /api/keys on your website so customers and courts can confirm them."],
     ], [32 * mm, CONTENT_W - 32 * mm]))
+    s.append(P("Plans", h2))
+    s.append(P("Every organisation gets a <b>30-day free trial</b> from the first time a member signs in, then a paid "
+               "<b>Business</b> or <b>Enterprise</b> plan. The operator records a payment with "
+               "<font name='Mono' size='8'>qsign plan set acme --plan business --until 2027-12-31</font>. When a plan ends, "
+               "the organisation can no longer sign or send, but envelopes already sent can be finished and everything signed "
+               "can always be viewed and verified. Guest signers never need a plan."))
     s.append(P("Operating it", h2))
     s += bullets([
         "<b>Alarms</b> email your team when signing errors, throttling or server errors appear.",

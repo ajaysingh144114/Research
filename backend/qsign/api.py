@@ -34,6 +34,7 @@ from .envelopes import (
     verify_evidence,
 )
 from .identity import GUEST_ORG, Principal, current_principal, dev_mode, require_admin
+from .plans import PlanStore, plan_store_from_env, status as plan_status
 from .services import Directory, Notifier, directory_from_env, notifier_from_env
 from .signers import Signer, signers_from_env
 from .store import Conflict, EnvelopeStore, NotFound, store_from_env
@@ -120,6 +121,21 @@ def get_notifier() -> Notifier:
 @lru_cache
 def get_directory() -> Directory:
     return directory_from_env()
+
+
+@lru_cache
+def get_plans() -> PlanStore:
+    return plan_store_from_env()
+
+
+def require_active_plan(who: Principal, plans: PlanStore) -> None:
+    """New signing needs an active trial or paid plan. Viewing and verifying never do."""
+    if who.org_id == GUEST_ORG:
+        raise HTTPException(402, "guest accounts can sign envelopes sent to them; "
+                                 "signing your own documents needs a QSign plan for your organisation")
+    if not plan_status(plans.get_or_start_trial(who.org_id))["active"]:
+        raise HTTPException(402, "your organisation's QSign trial or plan has ended; "
+                                 "ask your administrator to subscribe. Existing signatures stay valid.")
 
 
 def trusted_fingerprints(signers: list[Signer]) -> list[str]:
@@ -227,6 +243,13 @@ def create_app() -> FastAPI:
     def me(who: Principal = Depends(current_principal)):
         return {"email": who.email, "name": who.name, "org_id": who.org_id, "is_org_admin": who.is_org_admin}
 
+    @app.get("/api/plan")
+    def plan(who: Principal = Depends(current_principal), plans: PlanStore = Depends(get_plans)):
+        if who.org_id == GUEST_ORG:
+            return {"org_id": GUEST_ORG, "plan": "guest", "active": False, "can_sign": False,
+                    "expires_at": None, "days_left": 0}
+        return plan_status(plans.get_or_start_trial(who.org_id))
+
     @app.post("/api/sign")
     def sign(
         body: SignRequest,
@@ -234,7 +257,9 @@ def create_app() -> FastAPI:
         who: Principal = Depends(current_principal),
         signers: list[Signer] = Depends(get_signers),
         audit: AuditLog = Depends(get_audit),
+        plans: PlanStore = Depends(get_plans),
     ):
+        require_active_plan(who, plans)
         if not body.consent:
             raise HTTPException(400, "consent to sign electronically is required")
         try:
@@ -260,9 +285,11 @@ def create_app() -> FastAPI:
         audit: AuditLog = Depends(get_audit),
         notifier: Notifier = Depends(get_notifier),
         directory: Directory = Depends(get_directory),
+        plans: PlanStore = Depends(get_plans),
     ):
         if who.org_id == GUEST_ORG:
             raise HTTPException(403, "guest accounts can sign but cannot send envelopes")
+        require_active_plan(who, plans)
         env = create_envelope(
             who,
             title=body.title,
