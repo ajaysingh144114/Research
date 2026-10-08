@@ -1,0 +1,242 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  QSign - quantum-safe hybrid e-signatures. ML-DSA-65 + ECDSA P-384 keys in AWS KMS,
+  Cognito sign-in, write-once (Object Lock) archive in S3 and an audit table in DynamoDB.
+
+Parameters:
+  ArchiveRetentionDays:
+    Type: Number
+    Default: 3650
+    MinValue: 1
+    Description: Days each signature bundle stays locked (cannot be deleted or changed). 3650 = 10 years.
+  AllowedOrigin:
+    Type: String
+    Default: "*"
+    Description: Browser origin allowed to call the API (set to your own domain in production).
+
+Globals:
+  Function:
+    Runtime: python3.13
+    Architectures: [arm64]
+    Timeout: 15
+    MemorySize: 512
+    Tracing: Active
+
+Resources:
+  # ---------- Signing keys (private keys never leave KMS HSMs) ----------
+  MlDsaKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: QSign post-quantum signing key (ML-DSA-65, NIST FIPS 204)
+      KeySpec: ML_DSA_65
+      KeyUsage: SIGN_VERIFY
+      EnableKeyRotation: false
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AccountAdmin
+            Effect: Allow
+            Principal: { AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root" }
+            Action: "kms:*"
+            Resource: "*"
+
+  MlDsaKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub "alias/qsign-${AWS::StackName}-mldsa65"
+      TargetKeyId: !Ref MlDsaKey
+
+  EcdsaKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: QSign classical signing key (ECDSA P-384), paired with ML-DSA
+      KeySpec: ECC_NIST_P384
+      KeyUsage: SIGN_VERIFY
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AccountAdmin
+            Effect: Allow
+            Principal: { AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root" }
+            Action: "kms:*"
+            Resource: "*"
+
+  EcdsaKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub "alias/qsign-${AWS::StackName}-ecdsa-p384"
+      TargetKeyId: !Ref EcdsaKey
+
+  # ---------- Signer accounts ----------
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "qsign-${AWS::StackName}"
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: false
+        - Name: name
+          Required: false
+          Mutable: true
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: qsign-web
+      GenerateSecret: false
+      ExplicitAuthFlows: [ALLOW_USER_PASSWORD_AUTH, ALLOW_REFRESH_TOKEN_AUTH]
+      PreventUserExistenceErrors: ENABLED
+      IdTokenValidity: 15
+      TokenValidityUnits: { IdToken: minutes }
+
+  # ---------- Tamper-evident records ----------
+  AuditTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: id, AttributeType: S }
+      KeySchema:
+        - { AttributeName: id, KeyType: HASH }
+      PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: true }
+      SSESpecification: { SSEEnabled: true }
+      DeletionProtectionEnabled: true
+
+  ArchiveBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ObjectLockEnabled: true
+      ObjectLockConfiguration:
+        ObjectLockEnabled: Enabled
+        Rule:
+          DefaultRetention:
+            Mode: COMPLIANCE
+            Days: !Ref ArchiveRetentionDays
+      VersioningConfiguration: { Status: Enabled }
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
+
+  ArchiveBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArchiveBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt ArchiveBucket.Arn
+              - !Sub "${ArchiveBucket.Arn}/*"
+            Condition: { Bool: { "aws:SecureTransport": "false" } }
+
+  # ---------- API ----------
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins: [!Ref AllowedOrigin]
+        AllowMethods: [GET, POST]
+        AllowHeaders: [content-type, authorization]
+      Auth:
+        Authorizers:
+          CognitoJwt:
+            IdentitySource: "$request.header.Authorization"
+            JwtConfiguration:
+              issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}"
+              audience: [!Ref UserPoolClient]
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit: 20
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend
+      Handler: qsign.lambda_handler.handler
+      Environment:
+        Variables:
+          QSIGN_MODE: kms
+          QSIGN_KMS_MLDSA_KEY_ID: !GetAtt MlDsaKey.Arn
+          QSIGN_KMS_ECDSA_KEY_ID: !GetAtt EcdsaKey.Arn
+          QSIGN_AUDIT_TABLE: !Ref AuditTable
+          QSIGN_ARCHIVE_BUCKET: !Ref ArchiveBucket
+          QSIGN_COGNITO_CLIENT_ID: !Ref UserPoolClient
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: [kms:Sign, kms:GetPublicKey]
+              Resource: [!GetAtt MlDsaKey.Arn, !GetAtt EcdsaKey.Arn]
+            - Effect: Allow
+              Action: [dynamodb:PutItem]
+              Resource: !GetAtt AuditTable.Arn
+            - Effect: Allow
+              Action: [s3:PutObject]
+              Resource: !Sub "${ArchiveBucket.Arn}/bundles/*"
+      Events:
+        Sign:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/sign
+            Method: POST
+            Auth: { Authorizer: CognitoJwt }
+        Verify:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /api/verify, Method: POST }
+        Keys:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /api/keys, Method: GET }
+        Config:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /api/config, Method: GET }
+        Health:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /health, Method: GET }
+        Index:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Path: /, Method: GET }
+
+Outputs:
+  AppUrl:
+    Description: Open this in a browser to sign and verify documents
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/"
+  UserPoolId:
+    Description: Add signers here (Cognito > Users > Create user)
+    Value: !Ref UserPool
+  MlDsaKeyArn:
+    Value: !GetAtt MlDsaKey.Arn
+  EcdsaKeyArn:
+    Value: !GetAtt EcdsaKey.Arn
+  AuditTableName:
+    Value: !Ref AuditTable
+  ArchiveBucketName:
+    Value: !Ref ArchiveBucket

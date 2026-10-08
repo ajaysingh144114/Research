@@ -1,0 +1,22 @@
+[project]
+name = "qsign"
+version = "0.1.0"
+description = "Quantum-safe hybrid (ML-DSA + ECDSA) electronic signatures on AWS"
+requires-python = ">=3.11"
+dependencies = ["cryptography>=48.0.0", "fastapi>=0.115", "mangum>=0.19", "boto3>=1.40"]
+
+[project.scripts]
+qsign = "qsign.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["qsign"]
+
+[tool.setuptools.package-data]
+qsign = ["static/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QSign</title>
+<style>
+  :root { --bg:#f7f8fa; --card:#fff; --text:#1b1f24; --muted:#5b6470; --line:#dde1e6; --accent:#1f5fbf; --ok:#1d7a3e; --bad:#b42318; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111418; --card:#1a1f25; --text:#e8ebef; --muted:#9aa4b0; --line:#2d343c; --accent:#6aa1f0; --ok:#4cc27a; --bad:#f07167; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui, sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 20px; }
+  .tabs { display:flex; gap:8px; margin-bottom:16px; }
+  .tabs button { flex:1; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px; }
+  label { display:block; font-weight:600; margin:12px 0 4px; }
+  input, select { width:100%; padding:9px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--text); font:inherit; }
+  input[type=checkbox] { width:auto; margin-right:8px; }
+  .check { display:flex; align-items:flex-start; font-weight:400; }
+  button { padding:10px 14px; border-radius:6px; border:1px solid var(--accent); background:var(--accent); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:12px; } .row > div { flex:1; }
+  @media (max-width:520px) { .row { flex-direction:column; gap:0; } }
+  #out { margin-top:16px; white-space:pre-wrap; word-break:break-word; font-size:14px; }
+  .ok { color:var(--ok); font-weight:700; } .bad { color:var(--bad); font-weight:700; }
+  .hidden { display:none; }
+  small { color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>QSign</h1>
+  <p class="sub">Quantum-safe electronic signatures. Each document is signed with ML-DSA-65 (NIST FIPS 204) and ECDSA P-384. Your file is hashed in this browser and never uploaded.</p>
+
+  <div class="tabs">
+    <button id="tabSign">Sign</button>
+    <button id="tabVerify" class="ghost">Verify</button>
+  </div>
+
+  <section id="signPane">
+    <div id="loginBox">
+      <div class="row">
+        <div><label for="email">Email</label><input id="email" type="email" autocomplete="username"></div>
+        <div id="pwWrap"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password"></div>
+        <div id="nameWrap" class="hidden"><label for="name">Full name</label><input id="name"></div>
+      </div>
+      <small id="authNote"></small>
+    </div>
+    <label for="docSign">Document</label>
+    <input id="docSign" type="file">
+    <div class="row">
+      <div><label for="reason">Reason</label><input id="reason" placeholder="e.g. Approve contract"></div>
+      <div><label for="jur">Jurisdiction</label><select id="jur"><option>US</option><option>IN</option><option>EU</option><option selected>OTHER</option></select></div>
+    </div>
+    <label for="location">Location</label><input id="location" placeholder="City, country">
+    <label class="check"><input id="consent" type="checkbox">I have reviewed this document and I agree to sign it electronically.</label>
+    <p><button id="signBtn">Sign document</button></p>
+  </section>
+
+  <section id="verifyPane" class="hidden">
+    <label for="docVerify">Document</label><input id="docVerify" type="file">
+    <label for="bundleFile">Signature file (.qsig.json)</label><input id="bundleFile" type="file" accept=".json">
+    <p><button id="verifyBtn">Verify</button></p>
+  </section>
+
+  <div id="out" aria-live="polite"></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const out = $("out");
+let cfg = { auth_required: true };
+
+function show(lines, cls) {
+  out.replaceChildren();
+  lines.forEach((t, i) => {
+    const d = document.createElement("div");
+    d.textContent = t;
+    if (i === 0 && cls) d.className = cls;
+    out.appendChild(d);
+  });
+}
+
+async function sha512Hex(file) {
+  const buf = await crypto.subtle.digest("SHA-512", await file.arrayBuffer());
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function api(path, body, token) {
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = "Bearer " + token;
+  const r = await fetch(path, { method: "POST", headers, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail ? JSON.stringify(data.detail) : "HTTP " + r.status);
+  return data;
+}
+
+async function cognitoLogin(email, password) {
+  const r = await fetch(`https://cognito-idp.${cfg.region}.amazonaws.com/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-amz-json-1.1", "X-Amz-Target": "AWSCognitoIdentityProviderService.InitiateAuth" },
+    body: JSON.stringify({ AuthFlow: "USER_PASSWORD_AUTH", ClientId: cfg.cognito_client_id, AuthParameters: { USERNAME: email, PASSWORD: password } }),
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.message || "sign-in failed");
+  if (!data.AuthenticationResult) throw new Error("extra sign-in step required (" + data.ChallengeName + "); use the AWS console to finish setting up this account");
+  return data.AuthenticationResult.IdToken;
+}
+
+function download(name, obj) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+$("signBtn").onclick = async () => {
+  const file = $("docSign").files[0];
+  if (!file) return show(["Choose a document first."], "bad");
+  if (!$("consent").checked) return show(["Tick the consent box to sign."], "bad");
+  $("signBtn").disabled = true;
+  try {
+    show(["Hashing document in your browser..."]);
+    const body = {
+      document: { name: file.name, size: file.size, sha512: await sha512Hex(file) },
+      consent: true, reason: $("reason").value, location: $("location").value, jurisdiction: $("jur").value,
+    };
+    let token = null;
+    if (cfg.auth_required) token = await cognitoLogin($("email").value, $("password").value);
+    else { body.signer_email = $("email").value; body.signer_name = $("name").value; }
+    show(["Signing with AWS KMS..."]);
+    const res = await api("/api/sign", body, token);
+    download(file.name + ".qsig.json", res.bundle);
+    const m = res.bundle.manifest;
+    show(["Signed.", `Signer: ${m.signer.name} <${m.signer.email}>`, `Time (UTC): ${m.signed_at}`,
+          `Algorithms: ${res.bundle.signatures.map((s) => s.alg).join(" + ")}`, `Audit record: ${res.audit_id}`,
+          "Keep the downloaded .qsig.json file with the document."], "ok");
+  } catch (e) { show(["Signing failed: " + e.message], "bad"); }
+  finally { $("signBtn").disabled = false; }
+};
+
+$("verifyBtn").onclick = async () => {
+  const file = $("docVerify").files[0], bf = $("bundleFile").files[0];
+  if (!file || !bf) return show(["Choose both the document and its .qsig.json file."], "bad");
+  try {
+    const bundle = JSON.parse(await bf.text());
+    const r = await api("/api/verify", { bundle, sha512: await sha512Hex(file) });
+    const m = r.manifest || {}, s = m.signer || {};
+    const lines = [r.valid ? "VALID signature" : "NOT VALID"];
+    r.signatures.forEach((x) => lines.push(`${x.alg}: ${x.valid ? "ok" : "failed"}`));
+    lines.push(`Document unchanged: ${r.document_match ? "yes" : "NO"}`);
+    lines.push(`Signed with this service's keys: ${r.trusted_keys ? "yes" : "no"}`);
+    if (r.valid) lines.push(`Signed by ${s.name} <${s.email}> at ${m.signed_at} (identity: ${s.verified_by})`);
+    r.errors.forEach((e) => lines.push("Problem: " + e));
+    show(lines, r.valid && r.trusted_keys ? "ok" : "bad");
+  } catch (e) { show(["Verification failed: " + e.message], "bad"); }
+};
+
+function tab(sign) {
+  $("signPane").classList.toggle("hidden", !sign);
+  $("verifyPane").classList.toggle("hidden", sign);
+  $("tabSign").classList.toggle("ghost", !sign);
+  $("tabVerify").classList.toggle("ghost", sign);
+  out.replaceChildren();
+}
+$("tabSign").onclick = () => tab(true);
+$("tabVerify").onclick = () => tab(false);
+
+fetch("/api/config").then((r) => r.json()).then((c) => {
+  cfg = c;
+  if (!c.auth_required) {
+    $("pwWrap").classList.add("hidden");
+    $("nameWrap").classList.remove("hidden");
+    $("authNote").textContent = "Development mode: identity is self-declared and not verified.";
+  } else {
+    $("authNote").textContent = "Sign in with your QSign account. Your identity is checked by Amazon Cognito.";
+  }
+});
+</script>
+</body>
+</html>
