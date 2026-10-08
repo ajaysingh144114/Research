@@ -28,6 +28,8 @@ and the EU, read [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
 
 ## How it works
 
+New to QSign? Start with the illustrated guide **[QSign: how it works (PDF)](docs/QSign-How-It-Works.pdf)**. It explains hashes, keys, post-quantum and hybrid signatures, envelopes, verification, security and the law in plain language.
+
 ```
  Sender's browser            QSign on AWS                              Signers
  ────────────────            ────────────                              ───────
@@ -59,7 +61,7 @@ and the EU, read [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
 | `backend/Dockerfile` | Container image for ECS, EKS or on-premises |
 | `infra/template.yaml` | AWS SAM stack |
 | `scripts/create-org-admin.sh` | Creates the first administrator of a new organisation |
-| `docs/` | [Compliance](docs/COMPLIANCE.md), [operations](docs/OPERATIONS.md) and [API](docs/API.md) guides |
+| `docs/` | [How it works (PDF)](docs/QSign-How-It-Works.pdf), [compliance](docs/COMPLIANCE.md), [operations](docs/OPERATIONS.md) and [API](docs/API.md) guides |
 
 ## Quick start on your computer (no AWS needed)
 
