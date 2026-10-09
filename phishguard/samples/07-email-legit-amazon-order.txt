@@ -1,0 +1,11 @@
+From: Amazon.in <shipment-tracking@amazon.in>
+Subject: Your Amazon.in order has been dispatched
+
+Hello Lali,
+
+Your package with "USB-C cable (2-pack)" has been dispatched and will arrive on Thursday.
+
+Track your package: https://www.amazon.in/gp/your-account/order-history
+
+Thanks for shopping with us.
+Amazon.in
