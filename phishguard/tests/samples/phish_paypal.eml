@@ -1,0 +1,24 @@
+Return-Path: <bounce@mail-serv-04.xyz>
+Authentication-Results: mx.example.com;
+       spf=pass smtp.mailfrom=mail-serv-04.xyz;
+       dkim=none;
+       dmarc=fail (p=REJECT) header.from=paypal.com
+From: "PayPal Service" <service@paypal.com>
+Reply-To: support@secure-mail-help.net
+To: victim@example.com
+Subject: URGENT: Your account has been suspended
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=utf-8
+
+Your PayPal account was limited. Verify now: http://paypal.com.account-verify-center.xyz/login
+
+--b1
+Content-Type: text/html; charset=utf-8
+
+<html><body>
+<p>Dear customer, unusual activity was detected.</p>
+<p><a href="http://paypa1-secure.com/signin?id=8812">https://www.paypal.com/myaccount</a></p>
+</body></html>
+--b1--

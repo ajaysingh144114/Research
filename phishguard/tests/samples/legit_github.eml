@@ -1,0 +1,16 @@
+Return-Path: <noreply@github.com>
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@github.com header.s=pf2023 header.b=abc123;
+       spf=pass (google.com: domain of noreply@github.com designates 192.30.252.206 as permitted sender) smtp.mailfrom=noreply@github.com;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=github.com
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=github.com; s=pf2023;
+	h=from:to:subject; bh=xyz=; b=abc=
+From: GitHub <noreply@github.com>
+To: lali@example.com
+Subject: [ajaysingh144114/Research] New pull request
+Content-Type: text/plain; charset=utf-8
+
+A new pull request was opened.
+View it: https://github.com/ajaysingh144114/Research/pull/1
+
+You are receiving this because you are subscribed.
