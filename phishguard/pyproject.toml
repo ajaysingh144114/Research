@@ -1,0 +1,22 @@
+[project]
+name = "phishguard"
+version = "0.1.0"
+description = "Link and sender checks for phishing and smishing: threat feeds, lookalike domains, SPF/DKIM/DMARC"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+phishguard = "phishguard.cli:main"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["phishguard"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

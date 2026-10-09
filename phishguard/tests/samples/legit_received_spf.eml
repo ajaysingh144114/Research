@@ -1,0 +1,8 @@
+Return-Path: <billing@hdfcbank.com>
+Received-SPF: pass (mx1.example.com: domain of billing@hdfcbank.com designates 203.0.113.9 as permitted sender) client-ip=203.0.113.9; envelope-from=billing@hdfcbank.com;
+From: HDFC Bank <billing@hdfcbank.com>
+To: customer@example.com
+Subject: Your statement is ready
+Content-Type: text/plain; charset=utf-8
+
+Your monthly statement is available at https://netbanking.hdfcbank.com/statements
